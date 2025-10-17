@@ -32,7 +32,6 @@ local Window = redzlib:MakeWindow({
     SaveFolder = "DragonHub_Config.json"
 })
 
--- Notificação de boas-vindas
 Window:AddMinimizeButton({
     Button = {Image = "rbxassetid://18751483361", BackgroundTransparency = 0},
     Corner = {CornerRadius = UDim.new(0, 6)}
@@ -92,13 +91,6 @@ local function startFly()
         
         bodyGyro.CFrame = camera.CFrame
     end)
-    
-    redzlib:Notification({
-        Title = "Fly Ativado!",
-        Text = "Use W/A/S/D para mover, Espaço para subir e Shift para descer.",
-        Duration = 4,
-        Callback = function() end
-    })
 end
 
 local function stopFly()
@@ -116,13 +108,6 @@ local function stopFly()
         bodyGyro:Destroy()
         bodyGyro = nil
     end
-    
-    redzlib:Notification({
-        Title = "Fly Desativado",
-        Text = "Sistema de voo foi desligado.",
-        Duration = 2,
-        Callback = function() end
-    })
 end
 
 -- Toggle Fly
@@ -149,6 +134,9 @@ FlySection:AddSlider({
     end
 })
 
+-- Adicionar informações de controle
+FlySection:AddParagraph({"Controles do Fly", "W/A/S/D - Mover\nEspaço - Subir\nShift - Descer"})
+
 -- Seção Speed
 local SpeedSection = MovementTab:AddSection({"Sistema de Velocidade"})
 
@@ -160,20 +148,8 @@ SpeedSection:AddToggle({
         speedEnabled = value
         if speedEnabled then
             humanoid.WalkSpeed = speedValue
-            redzlib:Notification({
-                Title = "Speed Ativado!",
-                Text = "Velocidade customizada aplicada.",
-                Duration = 2,
-                Callback = function() end
-            })
         else
             humanoid.WalkSpeed = 16
-            redzlib:Notification({
-                Title = "Speed Desativado",
-                Text = "Velocidade restaurada para padrão.",
-                Duration = 2,
-                Callback = function() end
-            })
         end
     end
 })
@@ -203,20 +179,8 @@ JumpSection:AddToggle({
         jumpEnabled = value
         if jumpEnabled then
             humanoid.JumpPower = jumpValue
-            redzlib:Notification({
-                Title = "Jump Ativado!",
-                Text = "Força de pulo customizada aplicada.",
-                Duration = 2,
-                Callback = function() end
-            })
         else
             humanoid.JumpPower = 50
-            redzlib:Notification({
-                Title = "Jump Desativado",
-                Text = "Força de pulo restaurada.",
-                Duration = 2,
-                Callback = function() end
-            })
         end
     end
 })
@@ -249,14 +213,9 @@ ConfigSection:AddButton({
         if flyEnabled then
             stopFly()
         end
-        redzlib:Notification({
-            Title = "Até logo!",
-            Text = "Dragon Hub foi fechado.",
-            Duration = 2,
-            Callback = function()
-                Window:Destroy()
-            end
-        })
+        if Window then
+            Window:Destroy()
+        end
     end
 })
 
@@ -277,19 +236,6 @@ player.CharacterAdded:Connect(function(char)
         jumpEnabled = false
         humanoid.JumpPower = 50
     end
-    
-    redzlib:Notification({
-        Title = "Personagem Respawnado",
-        Text = "Funcionalidades foram resetadas.",
-        Duration = 3,
-        Callback = function() end
-    })
 end)
 
--- Notificação inicial
-redzlib:Notification({
-    Title = "Dragon Hub Carregado!",
-    Text = "Bem-vindo ao Dragon Hub 0.2",
-    Duration = 4,
-    Callback = function() end
-})
+print("Dragon Hub 0.2 carregado com sucesso!")
