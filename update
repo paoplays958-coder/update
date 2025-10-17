@@ -111,17 +111,18 @@ local function stopFly()
 end
 
 -- Toggle Fly
-FlySection:AddToggle({
-    Text = "Ativar Fly",
-    Default = false,
-    Callback = function(value)
-        if value then
-            startFly()
-        else
-            stopFly()
-        end
-    end
+local ToggleFly = FlySection:AddToggle({
+    Name = "Ativar Fly",
+    Description = "Ative o modo de voo para explorar o mapa",
+    Default = false
 })
+ToggleFly:Callback(function(value)
+    if value then
+        startFly()
+    else
+        stopFly()
+    end
+end)
 
 -- Slider velocidade do Fly
 FlySection:AddSlider({
@@ -141,18 +142,19 @@ FlySection:AddParagraph({"Controles do Fly", "W/A/S/D - Mover\nEspaço - Subir\n
 local SpeedSection = MovementTab:AddSection({"Sistema de Velocidade"})
 
 -- Toggle Speed
-SpeedSection:AddToggle({
-    Text = "Ativar Speed",
-    Default = false,
-    Callback = function(value)
-        speedEnabled = value
-        if speedEnabled then
-            humanoid.WalkSpeed = speedValue
-        else
-            humanoid.WalkSpeed = 16
-        end
-    end
+local ToggleSpeed = SpeedSection:AddToggle({
+    Name = "Ativar Speed",
+    Description = "Aumente sua velocidade de corrida",
+    Default = false
 })
+ToggleSpeed:Callback(function(value)
+    speedEnabled = value
+    if speedEnabled then
+        humanoid.WalkSpeed = speedValue
+    else
+        humanoid.WalkSpeed = 16
+    end
+end)
 
 -- Slider Speed
 SpeedSection:AddSlider({
@@ -172,18 +174,19 @@ SpeedSection:AddSlider({
 local JumpSection = MovementTab:AddSection({"Sistema de Pulo"})
 
 -- Toggle Jump
-JumpSection:AddToggle({
-    Text = "Ativar Jump Power",
-    Default = false,
-    Callback = function(value)
-        jumpEnabled = value
-        if jumpEnabled then
-            humanoid.JumpPower = jumpValue
-        else
-            humanoid.JumpPower = 50
-        end
-    end
+local ToggleJump = JumpSection:AddToggle({
+    Name = "Ativar Jump Power",
+    Description = "Aumente a força do seu pulo",
+    Default = false
 })
+ToggleJump:Callback(function(value)
+    jumpEnabled = value
+    if jumpEnabled then
+        humanoid.JumpPower = jumpValue
+    else
+        humanoid.JumpPower = 50
+    end
+end)
 
 -- Slider Jump Power
 JumpSection:AddSlider({
@@ -207,17 +210,14 @@ local ConfigSection = SettingsTab:AddSection({"Sobre o Hub"})
 ConfigSection:AddParagraph({"Dragon Hub v0.2", "Desenvolvido para Roblox\n\nFuncionalidades:\n• Sistema de Voo\n• Velocidade Customizada\n• Pulo Aprimorado\n• Interface Profissional"})
 
 -- Botão para destruir a UI
-ConfigSection:AddButton({
-    Text = "Fechar Hub",
-    Callback = function()
-        if flyEnabled then
-            stopFly()
-        end
-        if Window then
-            Window:Destroy()
-        end
+ConfigSection:AddButton({"Fechar Hub", function()
+    if flyEnabled then
+        stopFly()
     end
-})
+    if Window then
+        Window:Destroy()
+    end
+end})
 
 -- Atualizar character ao respawnar
 player.CharacterAdded:Connect(function(char)
