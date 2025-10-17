@@ -1,0 +1,295 @@
+-- Dragon Hub 0.2 - Integrado com Redz Library
+-- Sistema completo de movimento
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local rootPart = character:WaitForChild("HumanoidRootPart")
+
+-- Variáveis de controle
+local flyEnabled = false
+local speedEnabled = false
+local jumpEnabled = false
+local speedValue = 16
+local jumpValue = 50
+local flySpeed = 50
+
+local bodyVelocity
+local bodyGyro
+local flyConnection
+
+-- Carregar Redz Library
+local redzlib = loadstring(game:HttpGet("https://raw.githubusercontent.com/tbao143/Library-ui/refs/heads/main/Redzhubui"))()
+
+-- Criar Window
+local Window = redzlib:MakeWindow({
+    Title = "Dragon Hub 0.2",
+    SubTitle = "Sistema completo de movimento",
+    SaveFolder = "DragonHub_Config.json"
+})
+
+-- Notificação de boas-vindas
+Window:AddMinimizeButton({
+    Button = {Image = "rbxassetid://18751483361", BackgroundTransparency = 0},
+    Corner = {CornerRadius = UDim.new(0, 6)}
+})
+
+-- Tab de Movimento
+local MovementTab = Window:MakeTab({"Movimento", "rbxassetid://7733764088"})
+
+-- Seção Fly
+local FlySection = MovementTab:AddSection({"Sistema de Voo"})
+
+-- Funções Fly
+local function startFly()
+    flyEnabled = true
+    
+    bodyGyro = Instance.new("BodyGyro")
+    bodyGyro.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+    bodyGyro.P = 9000
+    bodyGyro.D = 500
+    bodyGyro.Parent = rootPart
+    
+    bodyVelocity = Instance.new("BodyVelocity")
+    bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+    bodyVelocity.Velocity = Vector3.new(0, 0.1, 0)
+    bodyVelocity.P = 1250
+    bodyVelocity.Parent = rootPart
+    
+    flyConnection = RunService.Heartbeat:Connect(function()
+        local camera = workspace.CurrentCamera
+        local speed = flySpeed
+        local moveVector = Vector3.new(0, 0, 0)
+        
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+            moveVector = moveVector + camera.CFrame.LookVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+            moveVector = moveVector - camera.CFrame.LookVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+            moveVector = moveVector - camera.CFrame.RightVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+            moveVector = moveVector + camera.CFrame.RightVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+            moveVector = moveVector + Vector3.new(0, 1, 0)
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.RightShift) then
+            moveVector = moveVector - Vector3.new(0, 1, 0)
+        end
+        
+        if moveVector.Magnitude > 0 then
+            bodyVelocity.Velocity = moveVector.Unit * speed
+        else
+            bodyVelocity.Velocity = Vector3.new(0, 0.1, 0)
+        end
+        
+        bodyGyro.CFrame = camera.CFrame
+    end)
+    
+    redzlib:Notification({
+        Title = "Fly Ativado!",
+        Text = "Use W/A/S/D para mover, Espaço para subir e Shift para descer.",
+        Duration = 4,
+        Callback = function() end
+    })
+end
+
+local function stopFly()
+    flyEnabled = false
+    
+    if flyConnection then
+        flyConnection:Disconnect()
+        flyConnection = nil
+    end
+    if bodyVelocity then
+        bodyVelocity:Destroy()
+        bodyVelocity = nil
+    end
+    if bodyGyro then
+        bodyGyro:Destroy()
+        bodyGyro = nil
+    end
+    
+    redzlib:Notification({
+        Title = "Fly Desativado",
+        Text = "Sistema de voo foi desligado.",
+        Duration = 2,
+        Callback = function() end
+    })
+end
+
+-- Toggle Fly
+FlySection:AddToggle({
+    Text = "Ativar Fly",
+    Default = false,
+    Callback = function(value)
+        if value then
+            startFly()
+        else
+            stopFly()
+        end
+    end
+})
+
+-- Slider velocidade do Fly
+FlySection:AddSlider({
+    Text = "Velocidade do Fly",
+    Min = 10,
+    Max = 200,
+    Default = 50,
+    Callback = function(value)
+        flySpeed = value
+    end
+})
+
+-- Seção Speed
+local SpeedSection = MovementTab:AddSection({"Sistema de Velocidade"})
+
+-- Toggle Speed
+SpeedSection:AddToggle({
+    Text = "Ativar Speed",
+    Default = false,
+    Callback = function(value)
+        speedEnabled = value
+        if speedEnabled then
+            humanoid.WalkSpeed = speedValue
+            redzlib:Notification({
+                Title = "Speed Ativado!",
+                Text = "Velocidade customizada aplicada.",
+                Duration = 2,
+                Callback = function() end
+            })
+        else
+            humanoid.WalkSpeed = 16
+            redzlib:Notification({
+                Title = "Speed Desativado",
+                Text = "Velocidade restaurada para padrão.",
+                Duration = 2,
+                Callback = function() end
+            })
+        end
+    end
+})
+
+-- Slider Speed
+SpeedSection:AddSlider({
+    Text = "Velocidade de Corrida",
+    Min = 0,
+    Max = 100,
+    Default = 16,
+    Callback = function(value)
+        speedValue = value
+        if speedEnabled then
+            humanoid.WalkSpeed = speedValue
+        end
+    end
+})
+
+-- Seção Jump
+local JumpSection = MovementTab:AddSection({"Sistema de Pulo"})
+
+-- Toggle Jump
+JumpSection:AddToggle({
+    Text = "Ativar Jump Power",
+    Default = false,
+    Callback = function(value)
+        jumpEnabled = value
+        if jumpEnabled then
+            humanoid.JumpPower = jumpValue
+            redzlib:Notification({
+                Title = "Jump Ativado!",
+                Text = "Força de pulo customizada aplicada.",
+                Duration = 2,
+                Callback = function() end
+            })
+        else
+            humanoid.JumpPower = 50
+            redzlib:Notification({
+                Title = "Jump Desativado",
+                Text = "Força de pulo restaurada.",
+                Duration = 2,
+                Callback = function() end
+            })
+        end
+    end
+})
+
+-- Slider Jump Power
+JumpSection:AddSlider({
+    Text = "Força do Pulo",
+    Min = 0,
+    Max = 200,
+    Default = 50,
+    Callback = function(value)
+        jumpValue = value
+        if jumpEnabled then
+            humanoid.JumpPower = jumpValue
+        end
+    end
+})
+
+-- Tab de Configurações
+local SettingsTab = Window:MakeTab({"Configurações", "rbxassetid://7733955511"})
+
+local ConfigSection = SettingsTab:AddSection({"Sobre o Hub"})
+
+ConfigSection:AddParagraph({"Dragon Hub v0.2", "Desenvolvido para Roblox\n\nFuncionalidades:\n• Sistema de Voo\n• Velocidade Customizada\n• Pulo Aprimorado\n• Interface Profissional"})
+
+-- Botão para destruir a UI
+ConfigSection:AddButton({
+    Text = "Fechar Hub",
+    Callback = function()
+        if flyEnabled then
+            stopFly()
+        end
+        redzlib:Notification({
+            Title = "Até logo!",
+            Text = "Dragon Hub foi fechado.",
+            Duration = 2,
+            Callback = function()
+                Window:Destroy()
+            end
+        })
+    end
+})
+
+-- Atualizar character ao respawnar
+player.CharacterAdded:Connect(function(char)
+    character = char
+    humanoid = character:WaitForChild("Humanoid")
+    rootPart = character:WaitForChild("HumanoidRootPart")
+    
+    if flyEnabled then
+        stopFly()
+    end
+    if speedEnabled then
+        speedEnabled = false
+        humanoid.WalkSpeed = 16
+    end
+    if jumpEnabled then
+        jumpEnabled = false
+        humanoid.JumpPower = 50
+    end
+    
+    redzlib:Notification({
+        Title = "Personagem Respawnado",
+        Text = "Funcionalidades foram resetadas.",
+        Duration = 3,
+        Callback = function() end
+    })
+end)
+
+-- Notificação inicial
+redzlib:Notification({
+    Title = "Dragon Hub Carregado!",
+    Text = "Bem-vindo ao Dragon Hub 0.2",
+    Duration = 4,
+    Callback = function() end
+})
