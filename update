@@ -1,7 +1,8 @@
-loadstring([[
--- Dragon Hub 0.2 - Script Completo e Funcional
+-- Dragon Hub 0.2 - Script Direto (cole e execute)
 
-print("Iniciando Dragon Hub 0.2...")
+print("╔══════════════════════════════════════╗")
+print("║       DRAGON HUB 0.2 INICIANDO       ║")
+print("╚══════════════════════════════════════╝")
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -12,6 +13,8 @@ local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local humanoid = character:WaitForChild("Humanoid")
 local rootPart = character:WaitForChild("HumanoidRootPart")
+
+print("✓ Jogador carregado:", player.Name)
 
 -- Variáveis
 local flyEnabled = false
@@ -29,34 +32,51 @@ local isMobile = UserInputService.TouchEnabled and not UserInputService.Keyboard
 local isPC = UserInputService.KeyboardEnabled and UserInputService.MouseEnabled
 local platformType = isMobile and "Mobile" or (isPC and "PC" or "Unknown")
 
-print("Plataforma detectada:", platformType)
+print("✓ Plataforma detectada:", platformType)
 
 -- Carregar Library
-print("Carregando Redz Library...")
-local success, redzlib = pcall(function()
-    return loadstring(game:HttpGet("https://raw.githubusercontent.com/tbao143/Library-ui/refs/heads/main/Redzhubui"))()
+print("⏳ Carregando Redz Library...")
+
+local redzlib
+local success, error = pcall(function()
+    redzlib = loadstring(game:HttpGet("https://raw.githubusercontent.com/tbao143/Library-ui/refs/heads/main/Redzhubui"))()
 end)
 
 if not success then
-    warn("Erro ao carregar library:", redzlib)
+    warn("❌ ERRO ao carregar library!")
+    warn("Detalhes:", error)
     return
 end
 
-print("Library carregada! Criando UI...")
+if not redzlib then
+    warn("❌ Library retornou nil!")
+    return
+end
+
+print("✓ Library carregada com sucesso!")
 
 -- Criar Window
+print("⏳ Criando janela...")
+
 local Window = redzlib:MakeWindow({
     Title = "Dragon Hub 0.2",
     SubTitle = "Plataforma: " .. platformType
 })
 
--- TAB MOVIMENTO
+print("✓ Janela criada!")
+
+-- ============================================
+-- TAB 1: MOVIMENTO
+-- ============================================
+print("⏳ Criando Tab Movimento...")
+
 local Tab1 = Window:MakeTab({"Movimento", "rbxassetid://7733764088"})
 
--- FLY
+-- FLY SYSTEM
 Tab1:AddSection({"Sistema de Voo"})
 
 local function startFly()
+    print("Iniciando fly...")
     flyEnabled = true
     
     local bodyForce = Instance.new("BodyForce")
@@ -89,15 +109,19 @@ local function startFly()
         bodyVelocity.Velocity = move.Magnitude > 0 and move.Unit * flySpeed or Vector3.new(0, 0, 0)
         bodyGyro.CFrame = camera.CFrame
     end)
+    
+    print("✓ Fly ativado!")
 end
 
 local function stopFly()
+    print("Desativando fly...")
     flyEnabled = false
     if flyConnection then flyConnection:Disconnect() end
     if bodyVelocity then bodyVelocity:Destroy() end
     if bodyGyro then bodyGyro:Destroy() end
     local bodyForce = rootPart:FindFirstChild("FlyForce")
     if bodyForce then bodyForce:Destroy() end
+    print("✓ Fly desativado!")
 end
 
 Tab1:AddToggle({
@@ -113,10 +137,13 @@ Tab1:AddSlider({
     Min = 10,
     Max = 200,
     Default = 50,
-    Callback = function(v) flySpeed = v end
+    Callback = function(v) 
+        flySpeed = v 
+        print("Velocidade fly:", v)
+    end
 })
 
--- SPEED
+-- SPEED SYSTEM
 Tab1:AddSection({"Sistema de Velocidade"})
 
 Tab1:AddToggle({
@@ -125,6 +152,7 @@ Tab1:AddToggle({
     Callback = function(v)
         speedEnabled = v
         humanoid.WalkSpeed = v and speedValue or 16
+        print("Speed:", v and "ON" or "OFF")
     end
 })
 
@@ -136,10 +164,11 @@ Tab1:AddSlider({
     Callback = function(v)
         speedValue = v
         if speedEnabled then humanoid.WalkSpeed = v end
+        print("Velocidade:", v)
     end
 })
 
--- JUMP
+-- JUMP SYSTEM
 Tab1:AddSection({"Sistema de Pulo"})
 
 Tab1:AddToggle({
@@ -148,6 +177,7 @@ Tab1:AddToggle({
     Callback = function(v)
         jumpEnabled = v
         humanoid.JumpPower = v and jumpValue or 50
+        print("Jump:", v and "ON" or "OFF")
     end
 })
 
@@ -159,13 +189,15 @@ Tab1:AddSlider({
     Callback = function(v)
         jumpValue = v
         if jumpEnabled then humanoid.JumpPower = v end
+        print("Jump Power:", v)
     end
 })
 
--- NOCLIP
+-- NOCLIP SYSTEM
 Tab1:AddSection({"Atravessar Paredes"})
 
 local function startNoclip()
+    print("Ativando noclip...")
     noclipEnabled = true
     noclipConnection = RunService.Stepped:Connect(function()
         if not noclipEnabled then return end
@@ -175,9 +207,11 @@ local function startNoclip()
             end
         end
     end)
+    print("✓ Noclip ativado!")
 end
 
 local function stopNoclip()
+    print("Desativando noclip...")
     noclipEnabled = false
     if noclipConnection then noclipConnection:Disconnect() end
     for _, part in pairs(character:GetDescendants()) do
@@ -185,6 +219,7 @@ local function stopNoclip()
             part.CanCollide = true
         end
     end
+    print("✓ Noclip desativado!")
 end
 
 Tab1:AddToggle({
@@ -195,24 +230,18 @@ Tab1:AddToggle({
     end
 })
 
--- TAB CONFIG
-local Tab2 = Window:MakeTab({"Config", "rbxassetid://7733955511"})
+print("✓ Tab Movimento criada!")
 
-Tab2:AddSection({"Sobre"})
-Tab2:AddParagraph({"Dragon Hub 0.2", "Sistema completo para " .. platformType})
+-- ============================================
+-- TAB 2: TOOLS
+-- ============================================
+print("⏳ Criando Tab Tools...")
 
-Tab2:AddButton({"Fechar Hub", function()
-    if flyEnabled then stopFly() end
-    if noclipEnabled then stopNoclip() end
-    Window:Destroy()
-end})
+local Tab2 = Window:MakeTab({"Tools", "rbxassetid://7733911816"})
 
--- TAB TOOLS
-local Tab3 = Window:MakeTab({"Tools", "rbxassetid://7733911816"})
+Tab2:AddSection({"Ferramentas"})
 
-Tab3:AddSection({"Ferramentas"})
-
-Tab3:AddButton({"Pegar Todos Itens", function()
+Tab2:AddButton({"Pegar Todos Itens", function()
     local count = 0
     for _, v in pairs(workspace:GetDescendants()) do
         if v:IsA("Tool") then
@@ -220,10 +249,10 @@ Tab3:AddButton({"Pegar Todos Itens", function()
             count = count + 1
         end
     end
-    print("Coletados", count, "itens!")
+    print("✓ Coletados", count, "itens!")
 end})
 
-Tab3:AddButton({"Build Tool Simples", function()
+Tab2:AddButton({"Build Tool", function()
     local tool = Instance.new("Tool")
     tool.Name = "Build Tool"
     tool.RequiresHandle = false
@@ -241,15 +270,15 @@ Tab3:AddButton({"Build Tool Simples", function()
         part.BrickColor = BrickColor.Random()
         part.Position = rootPart.Position + (rootPart.CFrame.LookVector * 5)
         part.Parent = workspace
-        print("Bloco criado!")
+        print("✓ Bloco criado!")
     end)
     
     tool.Parent = player.Backpack
-    print("Build Tool adicionada!")
+    print("✓ Build Tool adicionada!")
 end})
 
 -- Espionar
-Tab3:AddSection({"Espionar Jogadores"})
+Tab2:AddSection({"Espionar Jogadores"})
 
 local function getPlayers()
     local list = {}
@@ -263,91 +292,140 @@ end
 
 local selectedSpy = nil
 
-local spyDrop = Tab3:AddDropdown({
+local spyDrop = Tab2:AddDropdown({
     Name = "Selecionar Jogador",
     Options = getPlayers(),
     Default = "",
     Callback = function(v)
         selectedSpy = v
+        print("Jogador selecionado:", v)
     end
 })
 
-Tab3:AddButton({"Espiar Jogador", function()
-    if selectedSpy then
+Tab2:AddButton({"Espiar", function()
+    if selectedSpy and selectedSpy ~= "" then
         local target = Players:FindFirstChild(selectedSpy)
         if target and target.Character and target.Character:FindFirstChild("Humanoid") then
             workspace.CurrentCamera.CameraSubject = target.Character.Humanoid
-            print("Espiando:", selectedSpy)
+            print("✓ Espiando:", selectedSpy)
+        else
+            print("❌ Jogador não encontrado!")
         end
+    else
+        print("❌ Selecione um jogador!")
     end
 end})
 
-Tab3:AddButton({"Parar Espiar", function()
+Tab2:AddButton({"Parar Espiar", function()
     workspace.CurrentCamera.CameraSubject = humanoid
-    print("Visão restaurada")
+    print("✓ Visão restaurada")
 end})
 
-Tab3:AddButton({"Atualizar Lista", function()
+Tab2:AddButton({"Atualizar Lista", function()
     spyDrop:Refresh(getPlayers(), true)
+    print("✓ Lista atualizada!")
 end})
 
--- TAB ADMIN
-local Tab4 = Window:MakeTab({"Admin", "rbxassetid://7733955511"})
+print("✓ Tab Tools criada!")
 
-Tab4:AddSection({"Poderes Admin"})
+-- ============================================
+-- TAB 3: ADMIN
+-- ============================================
+print("⏳ Criando Tab Admin...")
 
-Tab4:AddButton({"Desbanir Casas", function()
+local Tab3 = Window:MakeTab({"Admin", "rbxassetid://7733955511"})
+
+Tab3:AddSection({"Poderes Admin"})
+
+Tab3:AddButton({"Desbanir Casas", function()
+    local count = 0
     for _, v in pairs(workspace:GetDescendants()) do
         if v:IsA("Script") or v:IsA("LocalScript") then
             local name = v.Name:lower()
             if name:find("ban") or name:find("kick") then
                 v.Disabled = true
                 v:Destroy()
+                count = count + 1
             end
         end
     end
-    print("Anti-ban aplicado!")
+    print("✓ Anti-ban aplicado! Scripts removidos:", count)
 end})
 
 -- Teleporte
-Tab4:AddSection({"Teleporte"})
+Tab3:AddSection({"Teleporte"})
 
 local selectedTP = nil
 
-local tpDrop = Tab4:AddDropdown({
+local tpDrop = Tab3:AddDropdown({
     Name = "Selecionar Jogador",
     Options = getPlayers(),
     Default = "",
     Callback = function(v)
         selectedTP = v
+        print("Jogador selecionado:", v)
     end
 })
 
-Tab4:AddButton({"Teleportar", function()
-    if selectedTP then
+Tab3:AddButton({"Teleportar", function()
+    if selectedTP and selectedTP ~= "" then
         local target = Players:FindFirstChild(selectedTP)
         if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
             rootPart.CFrame = target.Character.HumanoidRootPart.CFrame + Vector3.new(0, 3, 0)
-            print("Teleportado para:", selectedTP)
+            print("✓ Teleportado para:", selectedTP)
+        else
+            print("❌ Jogador não encontrado!")
         end
+    else
+        print("❌ Selecione um jogador!")
     end
 end})
 
-Tab4:AddButton({"Atualizar Lista", function()
+Tab3:AddButton({"Atualizar Lista", function()
     tpDrop:Refresh(getPlayers(), true)
+    print("✓ Lista atualizada!")
 end})
 
+print("✓ Tab Admin criada!")
+
+-- ============================================
+-- TAB 4: CONFIG
+-- ============================================
+print("⏳ Criando Tab Config...")
+
+local Tab4 = Window:MakeTab({"Config", "rbxassetid://7733965118"})
+
+Tab4:AddSection({"Sobre o Hub"})
+
+Tab4:AddParagraph({"Dragon Hub 0.2", "Sistema completo\nPlataforma: " .. platformType .. "\n\nFeatures:\n• Fly, Speed, Jump\n• Noclip\n• Tools & Admin\n• Teleporte e Espionar"})
+
+Tab4:AddButton({"Fechar Hub", function()
+    print("Fechando hub...")
+    if flyEnabled then stopFly() end
+    if noclipEnabled then stopNoclip() end
+    Window:Destroy()
+    print("✓ Hub fechado!")
+end})
+
+print("✓ Tab Config criada!")
+
+-- ============================================
+-- SISTEMA DE ATUALIZAÇÃO
+-- ============================================
+
 -- Atualizar listas automaticamente
-Players.PlayerAdded:Connect(function()
+Players.PlayerAdded:Connect(function(p)
     task.wait(1)
     if spyDrop then spyDrop:Refresh(getPlayers(), true) end
     if tpDrop then tpDrop:Refresh(getPlayers(), true) end
+    print("✓ Jogador entrou:", p.Name, "- Listas atualizadas")
 end)
 
-Players.PlayerRemoving:Connect(function()
+Players.PlayerRemoving:Connect(function(p)
     task.wait(1)
     if spyDrop then spyDrop:Refresh(getPlayers(), true) end
     if tpDrop then tpDrop:Refresh(getPlayers(), true) end
+    print("✓ Jogador saiu:", p.Name, "- Listas atualizadas")
 end)
 
 -- Respawn
@@ -357,7 +435,12 @@ player.CharacterAdded:Connect(function(char)
     rootPart = char:WaitForChild("HumanoidRootPart")
     if flyEnabled then stopFly() end
     if noclipEnabled then stopNoclip() end
+    print("✓ Personagem respawnado")
 end)
 
-print("Dragon Hub 0.2 carregado com sucesso!")
-]])()
+print("╔══════════════════════════════════════╗")
+print("║   DRAGON HUB 0.2 CARREGADO 100%!     ║")
+print("╚══════════════════════════════════════╝")
+print("✓ Todas as funcionalidades ativas!")
+print("✓ Plataforma:", platformType)
+print("✓ Jogadores no servidor:", #Players:GetPlayers())
