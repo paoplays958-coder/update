@@ -230,6 +230,58 @@ Tab1:AddToggle({
     end
 })
 
+-- COR DO CÉU
+Tab1:AddSection({"Cor do Céu"})
+
+local originalSkySettings = {
+    Ambient = Lighting.Ambient,
+    OutdoorAmbient = Lighting.OutdoorAmbient,
+    FogColor = Lighting.FogColor
+}
+
+local selectedSkyColor = "Normal"
+
+Tab1:AddDropdown({
+    Name = "Escolher Cor",
+    Options = {"Normal", "Azul", "Vermelho", "Verde", "Roxo"},
+    Default = "Normal",
+    Callback = function(v)
+        selectedSkyColor = v
+        print("Cor selecionada:", v)
+    end
+})
+
+Tab1:AddButton({"Aplicar Cor do Céu", function()
+    if selectedSkyColor == "Normal" then
+        Lighting.Ambient = originalSkySettings.Ambient
+        Lighting.OutdoorAmbient = originalSkySettings.OutdoorAmbient
+        Lighting.FogColor = originalSkySettings.FogColor
+        print("✓ Céu restaurado!")
+    else
+        local colors = {
+            Azul = Color3.fromRGB(100, 150, 255),
+            Vermelho = Color3.fromRGB(255, 50, 50),
+            Verde = Color3.fromRGB(50, 255, 100),
+            Roxo = Color3.fromRGB(200, 50, 255)
+        }
+        
+        local selectedColor = colors[selectedSkyColor]
+        Lighting.OutdoorAmbient = selectedColor
+        Lighting.Ambient = selectedColor
+        Lighting.FogColor = selectedColor
+        
+        local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
+        if not atmosphere then
+            atmosphere = Instance.new("Atmosphere")
+            atmosphere.Parent = Lighting
+        end
+        atmosphere.Color = selectedColor
+        atmosphere.Decay = selectedColor
+        
+        print("✓ Céu alterado para:", selectedSkyColor)
+    end
+end})
+
 print("✓ Tab Movimento criada!")
 
 -- ============================================
@@ -337,20 +389,129 @@ local Tab3 = Window:MakeTab({"Admin", "rbxassetid://7733955511"})
 
 Tab3:AddSection({"Poderes Admin"})
 
-Tab3:AddButton({"Desbanir Casas", function()
+Tab3:AddButton({"Desbanir de Casas (Método 1)", function()
+    print("Aplicando anti-ban método 1...")
     local count = 0
+    
+    -- Remover scripts de ban
     for _, v in pairs(workspace:GetDescendants()) do
         if v:IsA("Script") or v:IsA("LocalScript") then
             local name = v.Name:lower()
-            if name:find("ban") or name:find("kick") then
+            if name:find("ban") or name:find("kick") or name:find("anticheat") then
                 v.Disabled = true
                 v:Destroy()
                 count = count + 1
             end
         end
     end
-    print("✓ Anti-ban aplicado! Scripts removidos:", count)
+    
+    -- Desabilitar TouchInterests que kickam
+    for _, v in pairs(workspace:GetDescendants()) do
+        if v:IsA("TouchTransmitter") then
+            v:Destroy()
+            count = count + 1
+        end
+    end
+    
+    print("✓ Método 1 aplicado! Removidos:", count)
 end})
+
+Tab3:AddButton({"Desbanir de Casas (Método 2)", function()
+    print("Aplicando anti-ban método 2...")
+    
+    -- Desabilitar colisões invisíveis
+    for _, v in pairs(workspace:GetDescendants()) do
+        if v:IsA("Part") and v.Transparency == 1 and v.CanCollide then
+            v.CanCollide = false
+        end
+    end
+    
+    -- Remover ProximityPrompts suspeitos
+    for _, v in pairs(workspace:GetDescendants()) do
+        if v:IsA("ProximityPrompt") then
+            local parent = v.Parent
+            if parent and parent.Name:lower():find("door") then
+                v:Destroy()
+            end
+        end
+    end
+    
+    print("✓ Método 2 aplicado!")
+end})
+
+Tab3:AddButton({"Desbanir TUDO (Agressivo)", function()
+    print("Aplicando anti-ban COMPLETO...")
+    
+    -- Método 1: Scripts
+    for _, v in pairs(workspace:GetDescendants()) do
+        if v:IsA("Script") or v:IsA("LocalScript") then
+            pcall(function()
+                v.Disabled = true
+                v:Destroy()
+            end)
+        end
+    end
+    
+    -- Método 2: TouchInterests
+    for _, v in pairs(workspace:GetDescendants()) do
+        if v:IsA("TouchTransmitter") then
+            pcall(function() v:Destroy() end)
+        end
+    end
+    
+    -- Método 3: BodyPosition/BodyVelocity que forçam movimento
+    for _, v in pairs(workspace:GetDescendants()) do
+        if v:IsA("BodyPosition") or v:IsA("BodyVelocity") then
+            if v.Parent and v.Parent.Parent ~= character then
+                pcall(function() v:Destroy() end)
+            end
+        end
+    end
+    
+    -- Método 4: Remover partes que bloqueiam
+    for _, v in pairs(workspace:GetDescendants()) do
+        if v:IsA("Part") then
+            if v.Transparency >= 0.9 and v.CanCollide then
+                v.CanCollide = false
+            end
+        end
+    end
+    
+    print("✓ Anti-ban COMPLETO aplicado!")
+end})
+
+Tab3:AddToggle({
+    Name = "Anti-Ban Automático",
+    Default = false,
+    Callback = function(v)
+        if v then
+            _G.AntiBanLoop = RunService.Heartbeat:Connect(function()
+                -- Manter noclip nos objetos
+                for _, part in pairs(character:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.CanCollide = false
+                    end
+                end
+                
+                -- Remover forças que empurram
+                for _, obj in pairs(rootPart:GetChildren()) do
+                    if obj:IsA("BodyPosition") or obj:IsA("BodyVelocity") or obj:IsA("BodyGyro") then
+                        if obj.Name ~= "FlyForce" and not flyEnabled then
+                            obj:Destroy()
+                        end
+                    end
+                end
+            end)
+            print("✓ Anti-Ban automático ATIVADO!")
+        else
+            if _G.AntiBanLoop then
+                _G.AntiBanLoop:Disconnect()
+                _G.AntiBanLoop = nil
+            end
+            print("✓ Anti-Ban automático DESATIVADO!")
+        end
+    end
+})
 
 -- Teleporte
 Tab3:AddSection({"Teleporte"})
