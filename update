@@ -1,13 +1,20 @@
--- Dragon Hub 0.2 - Redz Library (Brookhaven RP Otimizado)
+-- Dragon Hub 0.2 - Redz Library (Brookhaven RP Otimizado com Debug)
+
+print("[Dragon Hub] ===== INICIANDO CARREGAMENTO =====")
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 
+print("[Dragon Hub] Serviços carregados com sucesso")
+
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local humanoid = character:WaitForChild("Humanoid")
 local rootPart = character:WaitForChild("HumanoidRootPart")
+
+print("[Dragon Hub] Referências do personagem obtidas")
+print("[Dragon Hub] Player: " .. player.Name)
 
 local flyEnabled = false
 local speedEnabled = false
@@ -21,94 +28,221 @@ local bodyVelocity, bodyGyro, flyConnection
 local clickTPTool = nil
 local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
-local redzlib = loadstring(game:HttpGet("https://raw.githubusercontent.com/tbao143/Library-ui/refs/heads/main/Redzhubui"))()
+print("[Dragon Hub] Variáveis inicializadas")
+print("[Dragon Hub] Dispositivo detectado: " .. (isMobile and "MOBILE" or "PC"))
 
-local Window = redzlib:MakeWindow({
-    Title = "Dragon Hub 0.2",
-    SubTitle = "Brookhaven RP Edition"
-})
+-- Carrega a biblioteca com tratamento de erro robusto
+print("[Dragon Hub] Tentando carregar Redz Library...")
 
-local Tab1 = Window:MakeTab({"Movimento", "rbxassetid://7733764088"})
+local redzlib
+local loadSuccess, loadError = pcall(function()
+    print("[Dragon Hub] Fazendo requisição HTTP...")
+    local scriptContent = game:HttpGet("https://raw.githubusercontent.com/tbao143/Library-ui/refs/heads/main/Redzhubui")
+    print("[Dragon Hub] Script baixado com sucesso. Tamanho: " .. #scriptContent .. " caracteres")
+    
+    print("[Dragon Hub] Executando loadstring...")
+    redzlib = loadstring(scriptContent)()
+    print("[Dragon Hub] Redz Library carregada com sucesso!")
+end)
+
+if not loadSuccess then
+    warn("[Dragon Hub] ❌ ERRO CRÍTICO ao carregar biblioteca!")
+    warn("[Dragon Hub] Detalhes do erro: " .. tostring(loadError))
+    
+    -- Tenta método alternativo
+    print("[Dragon Hub] Tentando método alternativo...")
+    local altSuccess, altError = pcall(function()
+        redzlib = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/tbao143/Library-ui/refs/heads/main/Redzhubui"))()
+    end)
+    
+    if not altSuccess then
+        warn("[Dragon Hub] ❌ Método alternativo falhou: " .. tostring(altError))
+        error("[Dragon Hub] Não foi possível carregar a biblioteca. Verifique sua internet.")
+        return
+    else
+        print("[Dragon Hub] ✅ Método alternativo funcionou!")
+    end
+end
+
+print("[Dragon Hub] Verificando se redzlib foi carregado...")
+if not redzlib then
+    error("[Dragon Hub] ❌ redzlib é nil após carregamento!")
+    return
+end
+
+print("[Dragon Hub] ✅ redzlib carregado e pronto")
+
+-- Cria janela simplificada
+print("[Dragon Hub] Criando janela principal...")
+
+local Window
+local windowSuccess, windowError = pcall(function()
+    Window = redzlib:MakeWindow({
+        Title = "Dragon Hub 0.2",
+        SubTitle = "By Dragon Team"
+    })
+end)
+
+if not windowSuccess then
+    warn("[Dragon Hub] ❌ Erro ao criar janela: " .. tostring(windowError))
+    return
+end
+
+print("[Dragon Hub] ✅ Janela criada com sucesso")
+
+-- Remove botão de minimizar
+print("[Dragon Hub] Procurando e removendo botão de minimizar...")
+task.spawn(function()
+    task.wait(0.5)
+    
+    local removed = false
+    for _, gui in pairs(player.PlayerGui:GetChildren()) do
+        print("[Dragon Hub] Verificando GUI: " .. gui.Name)
+        
+        for _, obj in pairs(gui:GetDescendants()) do
+            if obj:IsA("TextButton") then
+                local buttonName = obj.Name:lower()
+                local buttonText = obj.Text:lower()
+                
+                if buttonName:find("minimize") or buttonName:find("min") or 
+                   buttonText:find("-") or buttonText:find("−") or buttonText:find("_") then
+                    print("[Dragon Hub] Botão minimizar encontrado: " .. obj:GetFullName())
+                    obj.Visible = false
+                    obj.Active = false
+                    obj.Parent = nil
+                    removed = true
+                    print("[Dragon Hub] ✅ Botão minimizar removido!")
+                end
+            end
+        end
+    end
+    
+    if not removed then
+        print("[Dragon Hub] ⚠️ Nenhum botão minimizar encontrado (pode ser normal)")
+    end
+end)
+
+-- Criação das Abas
+print("[Dragon Hub] Criando abas...")
+
+local Tab1, Tab2
+local tabSuccess, tabError = pcall(function()
+    Tab1 = Window:MakeTab({"Movimento", "rbxassetid://7733764088"})
+    print("[Dragon Hub] ✅ Tab1 (Movimento) criada")
+    
+    Tab2 = Window:MakeTab({"Config", "rbxassetid://7733955511"})
+    print("[Dragon Hub] ✅ Tab2 (Config) criada")
+end)
+
+if not tabSuccess then
+    warn("[Dragon Hub] ❌ Erro ao criar abas: " .. tostring(tabError))
+    return
+end
 
 -- Função para verificar se o personagem está válido
 local function isCharacterValid()
-    if not character or not character.Parent then
-        return false
+    local valid = character and character.Parent and rootPart and rootPart.Parent and humanoid and humanoid.Parent and humanoid.Health > 0
+    if not valid then
+        print("[Dragon Hub] ⚠️ Personagem inválido detectado")
     end
-    if not rootPart or not rootPart.Parent then
-        return false
-    end
-    if not humanoid or not humanoid.Parent or humanoid.Health <= 0 then
-        return false
-    end
-    return true
+    return valid
 end
 
 -- Função para atualizar referências do personagem
 local function updateCharacterReferences()
+    print("[Dragon Hub] Atualizando referências do personagem...")
     character = player.Character
     if character then
         humanoid = character:FindFirstChild("Humanoid")
         rootPart = character:FindFirstChild("HumanoidRootPart")
+        print("[Dragon Hub] ✅ Referências atualizadas")
+    else
+        warn("[Dragon Hub] ❌ Character não encontrado")
     end
 end
 
 -- Sistema de Fly otimizado para Brookhaven
 local function startFly()
-    if flyEnabled then return end
+    print("[Dragon Hub] Iniciando sistema Fly...")
+    
+    if flyEnabled then
+        print("[Dragon Hub] ⚠️ Fly já está ativo")
+        return
+    end
     
     updateCharacterReferences()
     
     if not isCharacterValid() then
-        warn("[Dragon Hub] Personagem inválido. Aguarde o respawn.")
+        warn("[Dragon Hub] ❌ Não pode ativar Fly - personagem inválido")
         return
     end
     
     flyEnabled = true
+    print("[Dragon Hub] Flag flyEnabled definida como true")
     
-    -- Remove qualquer BodyGyro/BodyVelocity anterior para evitar conflitos
+    -- Remove componentes anteriores
+    print("[Dragon Hub] Limpando componentes antigos...")
+    local removedCount = 0
     for _, obj in pairs(rootPart:GetChildren()) do
         if obj:IsA("BodyGyro") or obj:IsA("BodyVelocity") or obj:IsA("BodyPosition") then
             obj:Destroy()
+            removedCount = removedCount + 1
         end
     end
+    print("[Dragon Hub] " .. removedCount .. " componentes antigos removidos")
     
-    -- Desativa a física padrão do Brookhaven temporariamente
+    -- Desativa física padrão
     if humanoid then
         humanoid.PlatformStand = true
+        print("[Dragon Hub] PlatformStand ativado")
     end
     
-    -- Cria BodyGyro para controle de rotação
+    -- Cria BodyGyro
+    print("[Dragon Hub] Criando BodyGyro...")
     bodyGyro = Instance.new("BodyGyro")
     bodyGyro.Name = "FlyGyro"
     bodyGyro.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
     bodyGyro.P = 9000
     bodyGyro.D = 500
     bodyGyro.Parent = rootPart
+    print("[Dragon Hub] ✅ BodyGyro criado")
     
-    -- Cria BodyVelocity para movimento
+    -- Cria BodyVelocity
+    print("[Dragon Hub] Criando BodyVelocity...")
     bodyVelocity = Instance.new("BodyVelocity")
     bodyVelocity.Name = "FlyVelocity"
     bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
     bodyVelocity.Velocity = Vector3.new(0, 0, 0)
     bodyVelocity.Parent = rootPart
+    print("[Dragon Hub] ✅ BodyVelocity criado")
     
     -- Loop principal do fly
+    print("[Dragon Hub] Iniciando loop do Fly...")
+    local frameCount = 0
+    
     flyConnection = RunService.Heartbeat:Connect(function()
-        -- Verificações de segurança
+        frameCount = frameCount + 1
+        
+        -- Debug a cada 60 frames (~1 segundo)
+        if frameCount % 60 == 0 then
+            print("[Dragon Hub] Fly ativo - Frame: " .. frameCount)
+        end
+        
         if not flyEnabled then
+            print("[Dragon Hub] flyEnabled desativado, parando loop")
             stopFly()
             return
         end
         
         if not isCharacterValid() then
+            warn("[Dragon Hub] Personagem inválido durante fly, parando")
             stopFly()
             return
         end
         
         if not bodyVelocity or not bodyVelocity.Parent or not bodyGyro or not bodyGyro.Parent then
+            warn("[Dragon Hub] Componentes do fly perdidos, tentando recriar...")
             stopFly()
-            warn("[Dragon Hub] Componentes do fly foram destruídos. Reativando...")
             task.wait(0.1)
             if flyEnabled then
                 startFly()
@@ -116,7 +250,6 @@ local function startFly()
             return
         end
         
-        -- Mantém o personagem no modo fly
         if humanoid and humanoid.PlatformStand == false then
             humanoid.PlatformStand = true
         end
@@ -126,13 +259,13 @@ local function startFly()
         
         local move = Vector3.new(0, 0, 0)
         
-        -- Suporte para Mobile (joystick virtual)
+        -- Suporte Mobile
         if isMobile and humanoid.MoveDirection.Magnitude > 0 then
             local moveDir = humanoid.MoveDirection
             move = (camera.CFrame.RightVector * moveDir.X) + (camera.CFrame.LookVector * -moveDir.Z)
         end
         
-        -- Controles PC (WASD)
+        -- Controles PC
         if UserInputService:IsKeyDown(Enum.KeyCode.W) then
             move = move + camera.CFrame.LookVector
         end
@@ -145,8 +278,6 @@ local function startFly()
         if UserInputService:IsKeyDown(Enum.KeyCode.D) then
             move = move + camera.CFrame.RightVector
         end
-        
-        -- Subir/Descer (Space/Shift ou botões mobile)
         if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
             move = move + Vector3.new(0, 1, 0)
         end
@@ -154,59 +285,62 @@ local function startFly()
             move = move - Vector3.new(0, 1, 0)
         end
         
-        -- Aplica a velocidade de movimento
         if move.Magnitude > 0 then
             bodyVelocity.Velocity = move.Unit * flySpeed
         else
-            -- Mantém uma pequena velocidade para evitar queda
             bodyVelocity.Velocity = Vector3.new(0, 0.1, 0)
         end
         
-        -- Sincroniza rotação com a câmera
         bodyGyro.CFrame = camera.CFrame
-        
-        -- Previne colisões que podem causar bugs no Brookhaven
         rootPart.Velocity = bodyVelocity.Velocity
     end)
     
-    print("[Dragon Hub] Fly ativado com sucesso!")
+    print("[Dragon Hub] ✅ Fly ativado com sucesso!")
 end
 
 local function stopFly()
+    print("[Dragon Hub] Parando sistema Fly...")
+    
     flyEnabled = false
     
     if flyConnection then
         flyConnection:Disconnect()
         flyConnection = nil
+        print("[Dragon Hub] Conexão do fly desconectada")
     end
     
     if bodyVelocity then
         bodyVelocity:Destroy()
         bodyVelocity = nil
+        print("[Dragon Hub] BodyVelocity destruído")
     end
     
     if bodyGyro then
         bodyGyro:Destroy()
         bodyGyro = nil
+        print("[Dragon Hub] BodyGyro destruído")
     end
     
-    -- Restaura a física normal
     if humanoid and humanoid.Parent then
         humanoid.PlatformStand = false
+        print("[Dragon Hub] PlatformStand desativado")
     end
     
-    -- Zera a velocidade para evitar movimento residual
     if rootPart and rootPart.Parent then
         rootPart.Velocity = Vector3.new(0, 0, 0)
         rootPart.RotVelocity = Vector3.new(0, 0, 0)
+        print("[Dragon Hub] Velocidades zeradas")
     end
     
-    print("[Dragon Hub] Fly desativado.")
+    print("[Dragon Hub] ✅ Fly desativado com sucesso")
 end
 
--- Sistema de Click TP otimizado para Brookhaven
+-- Sistema de Click TP
 local function createClickTPTool()
+    print("[Dragon Hub] Criando ferramenta Click TP...")
+    
     if clickTPTool then
+        print("[Dragon Hub] Removendo Click TP anterior")
         clickTPTool:Destroy()
     end
     
@@ -216,52 +350,70 @@ local function createClickTPTool()
     clickTPTool.CanBeDropped = false
     
     clickTPTool.Activated:Connect(function()
-        if not isCharacterValid() then return end
+        print("[Dragon Hub] Click TP ativado")
+        
+        if not isCharacterValid() then
+            warn("[Dragon Hub] Personagem inválido, teleporte cancelado")
+            return
+        end
         
         local mouse = player:GetMouse()
         if mouse and mouse.Hit then
             local targetPos = mouse.Hit.Position
-            
-            -- Teleporte seguro com verificação de colisão
             local safePos = targetPos + Vector3.new(0, 3, 0)
             
-            -- Usa CFrame para evitar detecção de anti-cheat
-            rootPart.CFrame = CFrame.new(safePos)
+            print("[Dragon Hub] Teleportando para: " .. tostring(safePos))
             
-            -- Força atualização de rede
+            rootPart.CFrame = CFrame.new(safePos)
             task.wait()
             rootPart.Velocity = Vector3.new(0, 0, 0)
+            
+            print("[Dragon Hub] ✅ Teleporte concluído")
+        else
+            warn("[Dragon Hub] Mouse.Hit inválido")
         end
     end)
     
     clickTPTool.Parent = player.Backpack
+    print("[Dragon Hub] Click TP adicionado ao Backpack")
     
-    -- Auto-equipa apenas se não estiver em um veículo
     if humanoid and not humanoid.Sit then
         task.wait(0.1)
         if clickTPTool and clickTPTool.Parent == player.Backpack then
             humanoid:EquipTool(clickTPTool)
+            print("[Dragon Hub] Click TP equipado automaticamente")
         end
     end
     
-    print("[Dragon Hub] Click TP criado!")
+    print("[Dragon Hub] ✅ Click TP criado com sucesso")
 end
 
 local function removeClickTPTool()
+    print("[Dragon Hub] Removendo Click TP...")
+    
     if clickTPTool then
         clickTPTool:Destroy()
         clickTPTool = nil
-        print("[Dragon Hub] Click TP removido.")
+        print("[Dragon Hub] ✅ Click TP removido")
+    else
+        print("[Dragon Hub] Click TP já estava removido")
     end
 end
 
--- Interface UI
+-- ===== CRIAÇÃO DA INTERFACE =====
+print("[Dragon Hub] Criando interface...")
+
+-- TAB 1 - MOVIMENTO
+print("[Dragon Hub] Adicionando elementos à Tab1...")
+
 Tab1:AddSection({"Fly System"})
+print("[Dragon Hub] Seção Fly System adicionada")
 
 Tab1:AddToggle({
     Name = "Ativar Fly",
     Default = false,
     Callback = function(v)
+        print("[Dragon Hub] Toggle Fly alterado para: " .. tostring(v))
         if v then
             startFly()
         else
@@ -269,6 +421,7 @@ Tab1:AddToggle({
         end
     end
 })
+print("[Dragon Hub] Toggle Fly adicionado")
 
 Tab1:AddSlider({
     Text = "Velocidade Fly",
@@ -277,26 +430,35 @@ Tab1:AddSlider({
     Default = 50,
     Callback = function(v)
         flySpeed = v
+        print("[Dragon Hub] Velocidade Fly alterada para: " .. v)
     end
 })
+print("[Dragon Hub] Slider Fly adicionado")
 
 Tab1:AddParagraph({
     "Controles do Fly",
-    isMobile and "Mobile: Use o joystick para se mover. Botão de pular para subir." or "PC: W/A/S/D para mover, Space para subir, Shift para descer."
+    isMobile and "Mobile: Use o joystick para se mover
+Botão de pular para subir" or "PC: WASD para mover
+Space para subir, Shift para descer"
 })
+print("[Dragon Hub] Parágrafo Controles Fly adicionado")
 
 Tab1:AddSection({"Speed System"})
+print("[Dragon Hub] Seção Speed System adicionada")
 
 Tab1:AddToggle({
     Name = "Ativar Speed",
     Default = false,
     Callback = function(v)
+        print("[Dragon Hub] Toggle Speed alterado para: " .. tostring(v))
         speedEnabled = v
         if humanoid then
             humanoid.WalkSpeed = v and speedValue or 16
+            print("[Dragon Hub] WalkSpeed definido para: " .. humanoid.WalkSpeed)
         end
     end
 })
+print("[Dragon Hub] Toggle Speed adicionado")
 
 Tab1:AddSlider({
     Text = "Velocidade",
@@ -305,24 +467,30 @@ Tab1:AddSlider({
     Default = 16,
     Callback = function(v)
         speedValue = v
+        print("[Dragon Hub] Velocidade Speed alterada para: " .. v)
         if speedEnabled and humanoid then
             humanoid.WalkSpeed = v
         end
     end
 })
+print("[Dragon Hub] Slider Speed adicionado")
 
 Tab1:AddSection({"Jump System"})
+print("[Dragon Hub] Seção Jump System adicionada")
 
 Tab1:AddToggle({
     Name = "Ativar Jump",
     Default = false,
     Callback = function(v)
+        print("[Dragon Hub] Toggle Jump alterado para: " .. tostring(v))
         jumpEnabled = v
         if humanoid then
             humanoid.JumpPower = v and jumpValue or 50
+            print("[Dragon Hub] JumpPower definido para: " .. humanoid.JumpPower)
         end
     end
 })
+print("[Dragon Hub] Toggle Jump adicionado")
 
 Tab1:AddSlider({
     Text = "Força do Pulo",
@@ -331,18 +499,22 @@ Tab1:AddSlider({
     Default = 50,
     Callback = function(v)
         jumpValue = v
+        print("[Dragon Hub] Força Jump alterada para: " .. v)
         if jumpEnabled and humanoid then
             humanoid.JumpPower = v
         end
     end
 })
+print("[Dragon Hub] Slider Jump adicionado")
 
 Tab1:AddSection({"Click TP System"})
+print("[Dragon Hub] Seção Click TP System adicionada")
 
 Tab1:AddToggle({
     Name = "Ativar Click TP",
     Default = false,
     Callback = function(v)
+        print("[Dragon Hub] Toggle Click TP alterado para: " .. tostring(v))
         clickTPEnabled = v
         if v then
             createClickTPTool()
@@ -351,57 +523,82 @@ Tab1:AddToggle({
         end
     end
 })
+print("[Dragon Hub] Toggle Click TP adicionado")
 
 Tab1:AddParagraph({
     "Como usar Click TP",
-    "Equipe a ferramenta 'Click TP' e clique/toque onde deseja se teleportar. Funciona em qualquer superfície do mapa."
+    "Equipe a ferramenta 'Click TP'
+Clique/toque onde deseja se teleportar"
 })
+print("[Dragon Hub] Parágrafo Click TP adicionado")
 
-local Tab2 = Window:MakeTab({"Config", "rbxassetid://7733955511"})
+-- TAB 2 - CONFIG
+print("[Dragon Hub] Adicionando elementos à Tab2...")
 
 Tab2:AddSection({"Informações"})
+print("[Dragon Hub] Seção Informações adicionada")
+
 Tab2:AddParagraph({
     "Dragon Hub 0.2",
     "Otimizado para Brookhaven RP
+By Dragon Team
 Recursos:
 • Fly sem bugs
 • Speed customizável
 • Jump ajustável
 • Click TP instantâneo"
 })
+print("[Dragon Hub] Parágrafo Informações adicionado")
 
 Tab2:AddSection({"Controles"})
+print("[Dragon Hub] Seção Controles adicionada")
+
 Tab2:AddParagraph({
     "Dispositivo Detectado",
-    isMobile and "Mobile - Interface touch otimizada" or "PC - Controles de teclado e mouse"
+    isMobile and "Mobile - Interface touch otimizada
+Controles adaptados para tela sensível" or "PC - Controles de teclado e mouse
+WASD + Space + Shift"
 })
+print("[Dragon Hub] Parágrafo Dispositivo adicionado")
+
+Tab2:AddSection({"Ações"})
+print("[Dragon Hub] Seção Ações adicionada")
 
 Tab2:AddButton({
     "Resetar Personagem",
     function()
+        print("[Dragon Hub] Botão Resetar pressionado")
         if player.Character then
             player.Character:BreakJoints()
+            print("[Dragon Hub] Personagem resetado")
         end
     end
 })
+print("[Dragon Hub] Botão Resetar adicionado")
 
 Tab2:AddButton({
     "Fechar Hub",
     function()
+        print("[Dragon Hub] Botão Fechar pressionado")
         if flyEnabled then stopFly() end
         if clickTPEnabled then removeClickTPTool() end
         Window:Destroy()
+        print("[Dragon Hub] Hub fechado")
     end
 })
+print("[Dragon Hub] Botão Fechar adicionado")
 
--- Sistema automático de reset e manutenção
+-- Sistema de reset automático
+print("[Dragon Hub] Configurando sistema de reset automático...")
+
 player.CharacterAdded:Connect(function(char)
+    print("[Dragon Hub] Novo personagem detectado")
     task.wait(1)
     
     updateCharacterReferences()
     
-    -- Reseta todos os estados
     if flyEnabled then
+        print("[Dragon Hub] Desativando fly após reset")
         stopFly()
         flyEnabled = false
     end
@@ -409,41 +606,58 @@ player.CharacterAdded:Connect(function(char)
     speedEnabled = false
     jumpEnabled = false
     
-    -- Recria Click TP se estava ativo
     if clickTPEnabled then
+        print("[Dragon Hub] Recriando Click TP após reset")
         task.wait(0.5)
         createClickTPTool()
     end
     
-    print("[Dragon Hub] Personagem resetado. Reative as funções desejadas.")
+    print("[Dragon Hub] Sistema resetado com sucesso")
 end)
 
--- Loop de manutenção para garantir que os valores permaneçam
+-- Loop de manutenção
+print("[Dragon Hub] Iniciando loop de manutenção...")
+
+local maintenanceFrame = 0
 RunService.Heartbeat:Connect(function()
+    maintenanceFrame = maintenanceFrame + 1
+    
     if not isCharacterValid() then return end
     
-    -- Mantém Speed ativo
     if speedEnabled and humanoid then
         if humanoid.WalkSpeed ~= speedValue then
             humanoid.WalkSpeed = speedValue
+            if maintenanceFrame % 300 == 0 then
+                print("[Dragon Hub] Speed corrigido para: " .. speedValue)
+            end
         end
     end
     
-    -- Mantém Jump ativo
     if jumpEnabled and humanoid then
         if humanoid.JumpPower ~= jumpValue then
             humanoid.JumpPower = jumpValue
+            if maintenanceFrame % 300 == 0 then
+                print("[Dragon Hub] Jump corrigido para: " .. jumpValue)
+            end
         end
     end
 end)
 
--- Detecção de morte para desativar fly automaticamente
+-- Detecção de morte
+print("[Dragon Hub] Configurando detecção de morte...")
+
 if humanoid then
     humanoid.Died:Connect(function()
+        print("[Dragon Hub] Morte detectada")
         if flyEnabled then
             stopFly()
+            print("[Dragon Hub] Fly desativado por morte")
         end
     end)
 end
 
-print("[Dragon Hub 0.2] Carregado com sucesso para Brookhaven RP!")
+print("[Dragon Hub] ===== CARREGAMENTO CONCLUÍDO COM SUCESSO =====")
+print("[Dragon Hub] ✅ Todas as funcionalidades ativas")
+print("[Dragon Hub] ✅ Dispositivo: " .. (isMobile and "MOBILE" or "PC"))
+print("[Dragon Hub] ✅ Player: " .. player.Name)
+print("[Dragon Hub] ===============================================")
