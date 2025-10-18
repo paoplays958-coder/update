@@ -117,6 +117,43 @@ Tab1:AddToggle({
     end
 })
 
+-- ===== Sky Coloration =====
+Tab1:AddSection({"Cor do Céu"})
+
+Tab1:AddColorPicker({
+    Name = "Cor do Céu",
+    Default = BrickColor.new("Bright blue"),
+    ColorPresets = {
+        {Name = "Azul", Color = BrickColor.new("Bright blue")},
+        {Name = "Vermelho", Color = BrickColor.new("Bright red")},
+        {Name = "Verde", Color = BrickColor.new("Bright green")},
+        {Name = "Roxo", Color = BrickColor.new("Bright purple")}
+    },
+    Callback = function(color)
+        local cframe = workspace.CurrentCamera.CFrame
+        local newSky = Instance.new("Sky")
+        newSky.Name = "Sky"
+        newSky.Parent = workspace
+        newSky.LightInfluence = 0.7
+        newSky.SunTopAngle = 90
+        newSky.SunBottomAngle = 90
+        newSky.TimeOfDay = 0
+        newSky.Brightness = 1
+        newSky.Color = color.Color
+        cframe = cframe * CFrame.new(0, 100, 0)
+        newSky.CFrame = cframe
+    end
+})
+
+Tab1:AddButton({"Ativar", function()
+    local currentSky = workspace:FindFirstChild("Sky")
+    if currentSky then
+        currentSky:Destroy()
+    else
+        Tab1:FindFirstChild("Cor do Céu").Callback()
+    end
+end})
+
 -- ===== Config Tab =====
 local Tab2 = Window:MakeTab({"Config", "rbxassetid://7733955511"})
 
@@ -151,11 +188,15 @@ local function startFly()
 
         rootPart.Velocity = Vector3.new(rootPart.Velocity.x, newVelocity, rootPart.Velocity.z)
         rootPart.Acceleration = Vector3.new(rootPart.Acceleration.x, newAcceleration, rootPart.Acceleration.z)
+
+        if rootPart.Velocity.y < 0 then
+            rootPart.Velocity = Vector3.new(rootPart.Velocity.x, 0, rootPart.Velocity.z)
+            rootPart.CFrame = CFrame.new(rootPart.CFrame.Position, rootPart.CFrame.Position + Vector3.new(0, 1, 0))
+        end
     end
 
     local function stopFly()
-        rootPart.Velocity = Vector3.new(rootPart.Velocity.x, 0, rootPart.Velocity.z)
-        rootPart.Acceleration = Vector3.new(rootPart.Acceleration.x, 0, rootPart.Acceleration.z)
+        flyEnabled = false
     end
 
     local function onCharacterAdded()
