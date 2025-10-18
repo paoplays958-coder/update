@@ -72,55 +72,126 @@ print("⏳ Criando Tab Movimento...")
 
 local Tab1 = Window:MakeTab({"Movimento", "rbxassetid://7733764088"})
 
--- FLY SYSTEM
+-- FLY SYSTEM (CORRIGIDO)
 Tab1:AddSection({"Sistema de Voo"})
 
 local function startFly()
     print("Iniciando fly...")
     flyEnabled = true
     
-    local bodyForce = Instance.new("BodyForce")
-    bodyForce.Name = "FlyForce"
-    bodyForce.Force = Vector3.new(0, workspace.Gravity * rootPart:GetMass(), 0)
-    bodyForce.Parent = rootPart
+    -- Limpar qualquer instância anterior
+    if bodyVelocity then bodyVelocity:Destroy() end
+    if bodyGyro then bodyGyro:Destroy() end
+    local oldForce = rootPart:FindFirstChild("FlyForce")
+    if oldForce then oldForce:Destroy() end
     
-    bodyGyro = Instance.new("BodyGyro")
-    bodyGyro.MaxTorque = Vector3.new(100000, 100000, 100000)
-    bodyGyro.P = 9000
-    bodyGyro.Parent = rootPart
-    
+    -- BodyVelocity para movimento
     bodyVelocity = Instance.new("BodyVelocity")
+    bodyVelocity.Name = "FlyVelocity"
     bodyVelocity.MaxForce = Vector3.new(100000, 100000, 100000)
     bodyVelocity.Velocity = Vector3.new(0, 0, 0)
     bodyVelocity.Parent = rootPart
     
+    -- BodyGyro para rotação suave
+    bodyGyro = Instance.new("BodyGyro")
+    bodyGyro.Name = "FlyGyro"
+    bodyGyro.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+    bodyGyro.P = 9000
+    bodyGyro.D = 500
+    bodyGyro.Parent = rootPart
+    
+    -- Desabilitar gravidade no humanoid
+    humanoid.PlatformStand = true
+    
+    -- Loop de voo
     flyConnection = RunService.Heartbeat:Connect(function()
-        if not flyEnabled then return end
+        if not flyEnabled or not rootPart or not rootPart.Parent then 
+            stopFly()
+            return 
+        end
+        
         local camera = workspace.CurrentCamera
-        local move = Vector3.new(0, 0, 0)
+        local moveDirection = Vector3.new(0, 0, 0)
         
-        if UserInputService:IsKeyDown(Enum.KeyCode.W) then move = move + camera.CFrame.LookVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.S) then move = move - camera.CFrame.LookVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.A) then move = move - camera.CFrame.RightVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.D) then move = move + camera.CFrame.RightVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then move = move + Vector3.new(0, 1, 0) end
-        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then move = move - Vector3.new(0, 1, 0) end
+        -- Controles de PC
+        if isPC then
+            if UserInputService:IsKeyDown(Enum.KeyCode.W) then 
+                moveDirection = moveDirection + camera.CFrame.LookVector 
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.S) then 
+                moveDirection = moveDirection - camera.CFrame.LookVector 
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.A) then 
+                moveDirection = moveDirection - camera.CFrame.RightVector 
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.D) then 
+                moveDirection = moveDirection + camera.CFrame.RightVector 
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then 
+                moveDirection = moveDirection + Vector3.new(0, 1, 0) 
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then 
+                moveDirection = moveDirection - Vector3.new(0, 1, 0) 
+            end
+        end
         
-        bodyVelocity.Velocity = move.Magnitude > 0 and move.Unit * flySpeed or Vector3.new(0, 0, 0)
+        -- Controles Mobile (joystick virtual detectado automaticamente)
+        if isMobile then
+            local moveVector = humanoid.MoveVector
+            if moveVector.Magnitude > 0 then
+                moveDirection = camera.CFrame.LookVector * moveVector.Z + camera.CFrame.RightVector * moveVector.X
+            end
+            
+            -- Botões de subir/descer (se implementados)
+            if UserInputService:IsKeyDown(Enum.KeyCode.ButtonR1) or UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+                moveDirection = moveDirection + Vector3.new(0, 1, 0)
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.ButtonL1) then
+                moveDirection = moveDirection - Vector3.new(0, 1, 0)
+            end
+        end
+        
+        -- Aplicar movimento
+        if moveDirection.Magnitude > 0 then
+            bodyVelocity.Velocity = moveDirection.Unit * flySpeed
+        else
+            bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+        end
+        
+        -- Rotação suave da câmera
         bodyGyro.CFrame = camera.CFrame
     end)
     
-    print("✓ Fly ativado!")
+    print("✓ Fly ativado! Use WASD + Space/Shift (PC) ou Joystick (Mobile)")
 end
 
 local function stopFly()
     print("Desativando fly...")
     flyEnabled = false
-    if flyConnection then flyConnection:Disconnect() end
-    if bodyVelocity then bodyVelocity:Destroy() end
-    if bodyGyro then bodyGyro:Destroy() end
+    
+    if flyConnection then 
+        flyConnection:Disconnect() 
+        flyConnection = nil
+    end
+    
+    if bodyVelocity then 
+        bodyVelocity:Destroy() 
+        bodyVelocity = nil
+    end
+    
+    if bodyGyro then 
+        bodyGyro:Destroy() 
+        bodyGyro = nil
+    end
+    
     local bodyForce = rootPart:FindFirstChild("FlyForce")
     if bodyForce then bodyForce:Destroy() end
+    
+    -- Reativar física normal
+    if humanoid then
+        humanoid.PlatformStand = false
+    end
+    
     print("✓ Fly desativado!")
 end
 
@@ -128,7 +199,11 @@ Tab1:AddToggle({
     Name = "Ativar Fly",
     Default = false,
     Callback = function(v)
-        if v then startFly() else stopFly() end
+        if v then 
+            startFly() 
+        else 
+            stopFly() 
+        end
     end
 })
 
@@ -230,56 +305,169 @@ Tab1:AddToggle({
     end
 })
 
--- COR DO CÉU
+-- COR DO CÉU (CORRIGIDO)
 Tab1:AddSection({"Cor do Céu"})
 
+-- Salvar configurações originais
 local originalSkySettings = {
     Ambient = Lighting.Ambient,
     OutdoorAmbient = Lighting.OutdoorAmbient,
-    FogColor = Lighting.FogColor
+    FogColor = Lighting.FogColor,
+    FogEnd = Lighting.FogEnd,
+    FogStart = Lighting.FogStart,
+    ClockTime = Lighting.ClockTime,
+    Brightness = Lighting.Brightness
 }
 
-local selectedSkyColor = "Normal"
+-- Salvar Atmosphere original se existir
+local originalAtmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
+local savedAtmosphereSettings = nil
+if originalAtmosphere then
+    savedAtmosphereSettings = {
+        Color = originalAtmosphere.Color,
+        Decay = originalAtmosphere.Decay,
+        Density = originalAtmosphere.Density,
+        Glare = originalAtmosphere.Glare,
+        Haze = originalAtmosphere.Haze,
+        Offset = originalAtmosphere.Offset
+    }
+end
 
-Tab1:AddDropdown({
-    Name = "Escolher Cor",
-    Options = {"Normal", "Azul", "Vermelho", "Verde", "Roxo"},
+local selectedSkyColor = "Normal"
+local currentSkyDropdown = nil
+
+currentSkyDropdown = Tab1:AddDropdown({
+    Name = "Cor do Céu",
+    Options = {"Normal", "Azul Céu", "Vermelho Fogo", "Verde Floresta", "Roxo Místico", "Rosa Suave", "Laranja Pôr do Sol", "Amarelo Dourado"},
     Default = "Normal",
     Callback = function(v)
         selectedSkyColor = v
-        print("Cor selecionada:", v)
+        
+        -- Aplicar imediatamente
+        if v == "Normal" then
+            -- Restaurar tudo
+            Lighting.Ambient = originalSkySettings.Ambient
+            Lighting.OutdoorAmbient = originalSkySettings.OutdoorAmbient
+            Lighting.FogColor = originalSkySettings.FogColor
+            Lighting.FogEnd = originalSkySettings.FogEnd
+            Lighting.FogStart = originalSkySettings.FogStart
+            Lighting.ClockTime = originalSkySettings.ClockTime
+            Lighting.Brightness = originalSkySettings.Brightness
+            
+            -- Restaurar Atmosphere
+            local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
+            if atmosphere and savedAtmosphereSettings then
+                atmosphere.Color = savedAtmosphereSettings.Color
+                atmosphere.Decay = savedAtmosphereSettings.Decay
+                atmosphere.Density = savedAtmosphereSettings.Density
+                atmosphere.Glare = savedAtmosphereSettings.Glare
+                atmosphere.Haze = savedAtmosphereSettings.Haze
+                atmosphere.Offset = savedAtmosphereSettings.Offset
+            elseif atmosphere and not originalAtmosphere then
+                atmosphere:Destroy()
+            end
+            
+            print("✓ Céu restaurado ao normal!")
+        else
+            -- Cores definidas
+            local skyColors = {
+                ["Azul Céu"] = {
+                    Ambient = Color3.fromRGB(100, 150, 200),
+                    OutdoorAmbient = Color3.fromRGB(135, 206, 235),
+                    FogColor = Color3.fromRGB(135, 206, 250),
+                    Atmosphere = Color3.fromRGB(120, 180, 255)
+                },
+                ["Vermelho Fogo"] = {
+                    Ambient = Color3.fromRGB(180, 50, 50),
+                    OutdoorAmbient = Color3.fromRGB(255, 70, 70),
+                    FogColor = Color3.fromRGB(255, 100, 100),
+                    Atmosphere = Color3.fromRGB(255, 50, 50)
+                },
+                ["Verde Floresta"] = {
+                    Ambient = Color3.fromRGB(50, 150, 80),
+                    OutdoorAmbient = Color3.fromRGB(70, 200, 100),
+                    FogColor = Color3.fromRGB(80, 220, 120),
+                    Atmosphere = Color3.fromRGB(50, 255, 100)
+                },
+                ["Roxo Místico"] = {
+                    Ambient = Color3.fromRGB(120, 50, 180),
+                    OutdoorAmbient = Color3.fromRGB(180, 80, 255),
+                    FogColor = Color3.fromRGB(200, 100, 255),
+                    Atmosphere = Color3.fromRGB(200, 50, 255)
+                },
+                ["Rosa Suave"] = {
+                    Ambient = Color3.fromRGB(200, 120, 150),
+                    OutdoorAmbient = Color3.fromRGB(255, 150, 200),
+                    FogColor = Color3.fromRGB(255, 180, 220),
+                    Atmosphere = Color3.fromRGB(255, 150, 200)
+                },
+                ["Laranja Pôr do Sol"] = {
+                    Ambient = Color3.fromRGB(200, 120, 50),
+                    OutdoorAmbient = Color3.fromRGB(255, 150, 70),
+                    FogColor = Color3.fromRGB(255, 170, 100),
+                    Atmosphere = Color3.fromRGB(255, 140, 50)
+                },
+                ["Amarelo Dourado"] = {
+                    Ambient = Color3.fromRGB(200, 180, 80),
+                    OutdoorAmbient = Color3.fromRGB(255, 220, 100),
+                    FogColor = Color3.fromRGB(255, 240, 150),
+                    Atmosphere = Color3.fromRGB(255, 215, 0)
+                }
+            }
+            
+            local colorData = skyColors[v]
+            if colorData then
+                -- Aplicar cores de iluminação
+                Lighting.Ambient = colorData.Ambient
+                Lighting.OutdoorAmbient = colorData.OutdoorAmbient
+                Lighting.FogColor = colorData.FogColor
+                Lighting.FogEnd = 1000
+                Lighting.Brightness = 2
+                
+                -- Criar ou modificar Atmosphere
+                local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
+                if not atmosphere then
+                    atmosphere = Instance.new("Atmosphere")
+                    atmosphere.Parent = Lighting
+                end
+                
+                atmosphere.Color = colorData.Atmosphere
+                atmosphere.Decay = colorData.Atmosphere
+                atmosphere.Density = 0.3
+                atmosphere.Offset = 0.5
+                atmosphere.Glare = 0.5
+                atmosphere.Haze = 1.5
+                
+                print("✓ Céu alterado para:", v)
+            end
+        end
     end
 })
 
-Tab1:AddButton({"Aplicar Cor do Céu", function()
-    if selectedSkyColor == "Normal" then
-        Lighting.Ambient = originalSkySettings.Ambient
-        Lighting.OutdoorAmbient = originalSkySettings.OutdoorAmbient
-        Lighting.FogColor = originalSkySettings.FogColor
-        print("✓ Céu restaurado!")
-    else
-        local colors = {
-            Azul = Color3.fromRGB(100, 150, 255),
-            Vermelho = Color3.fromRGB(255, 50, 50),
-            Verde = Color3.fromRGB(50, 255, 100),
-            Roxo = Color3.fromRGB(200, 50, 255)
-        }
-        
-        local selectedColor = colors[selectedSkyColor]
-        Lighting.OutdoorAmbient = selectedColor
-        Lighting.Ambient = selectedColor
-        Lighting.FogColor = selectedColor
-        
-        local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
-        if not atmosphere then
-            atmosphere = Instance.new("Atmosphere")
-            atmosphere.Parent = Lighting
-        end
-        atmosphere.Color = selectedColor
-        atmosphere.Decay = selectedColor
-        
-        print("✓ Céu alterado para:", selectedSkyColor)
+-- Botão adicional (opcional, já aplica automaticamente)
+Tab1:AddButton({"Resetar Céu", function()
+    selectedSkyColor = "Normal"
+    if currentSkyDropdown then
+        currentSkyDropdown:Set("Normal")
     end
+    
+    Lighting.Ambient = originalSkySettings.Ambient
+    Lighting.OutdoorAmbient = originalSkySettings.OutdoorAmbient
+    Lighting.FogColor = originalSkySettings.FogColor
+    Lighting.FogEnd = originalSkySettings.FogEnd
+    Lighting.FogStart = originalSkySettings.FogStart
+    Lighting.ClockTime = originalSkySettings.ClockTime
+    Lighting.Brightness = originalSkySettings.Brightness
+    
+    local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
+    if atmosphere and savedAtmosphereSettings then
+        atmosphere.Color = savedAtmosphereSettings.Color
+        atmosphere.Decay = savedAtmosphereSettings.Decay
+    elseif atmosphere and not originalAtmosphere then
+        atmosphere:Destroy()
+    end
+    
+    print("✓ Céu totalmente resetado!")
 end})
 
 print("✓ Tab Movimento criada!")
@@ -496,7 +684,7 @@ Tab3:AddToggle({
                 -- Remover forças que empurram
                 for _, obj in pairs(rootPart:GetChildren()) do
                     if obj:IsA("BodyPosition") or obj:IsA("BodyVelocity") or obj:IsA("BodyGyro") then
-                        if obj.Name ~= "FlyForce" and not flyEnabled then
+                        if obj.Name ~= "FlyVelocity" and obj.Name ~= "FlyGyro" and not flyEnabled then
                             obj:Destroy()
                         end
                     end
@@ -558,7 +746,13 @@ local Tab4 = Window:MakeTab({"Config", "rbxassetid://7733965118"})
 
 Tab4:AddSection({"Sobre o Hub"})
 
-Tab4:AddParagraph({"Dragon Hub 0.2", "Sistema completo\nPlataforma: " .. platformType .. "\n\nFeatures:\n• Fly, Speed, Jump\n• Noclip\n• Tools & Admin\n• Teleporte e Espionar"})
+Tab4:AddParagraph({"Dragon Hub 0.2", "Sistema completo
+Plataforma: " .. platformType .. "
+Features:
+• Fly, Speed, Jump
+• Noclip
+• Tools & Admin
+• Teleporte e Espionar"})
 
 Tab4:AddButton({"Fechar Hub", function()
     print("Fechando hub...")
