@@ -1,5 +1,6 @@
--- Dragon Hub 0.2 - Integrado com Redz Library
--- Sistema completo de movimento
+-- Dragon Hub 0.2 - Teste com Redz Library
+
+print("Iniciando Dragon Hub...")
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -22,29 +23,41 @@ local bodyVelocity
 local bodyGyro
 local flyConnection
 
+print("Carregando Redz Library...")
+
 -- Carregar Redz Library
-local redzlib = loadstring(game:HttpGet("https://raw.githubusercontent.com/tbao143/Library-ui/refs/heads/main/Redzhubui"))()
+local success, redzlib = pcall(function()
+    return loadstring(game:HttpGet("https://raw.githubusercontent.com/tbao143/Library-ui/refs/heads/main/Redzhubui"))()
+end)
+
+if not success then
+    warn("Erro ao carregar Redz Library:", redzlib)
+    return
+end
+
+print("Redz Library carregada! Criando window...")
 
 -- Criar Window
 local Window = redzlib:MakeWindow({
     Title = "Dragon Hub 0.2",
-    SubTitle = "Sistema completo de movimento",
-    SaveFolder = "DragonHub_Config.json"
+    SubTitle = "By Dragon Team"
 })
 
-Window:AddMinimizeButton({
-    Button = {Image = "rbxassetid://18751483361", BackgroundTransparency = 0},
-    Corner = {CornerRadius = UDim.new(0, 6)}
-})
+print("Window criada! Adicionando tabs...")
 
 -- Tab de Movimento
-local MovementTab = Window:MakeTab({"Movimento", "rbxassetid://7733764088"})
+local Tab1 = Window:MakeTab({"Movimento", "rbxassetid://7733764088"})
+
+print("Tab criada! Adicionando seção...")
 
 -- Seção Fly
-local FlySection = MovementTab:AddSection({"Sistema de Voo"})
+Tab1:AddSection({"Sistema de Voo"})
+
+print("Seção adicionada! Adicionando toggle...")
 
 -- Funções Fly
 local function startFly()
+    print("Iniciando fly...")
     flyEnabled = true
     
     bodyGyro = Instance.new("BodyGyro")
@@ -91,9 +104,11 @@ local function startFly()
         
         bodyGyro.CFrame = camera.CFrame
     end)
+    print("Fly ativado!")
 end
 
 local function stopFly()
+    print("Parando fly...")
     flyEnabled = false
     
     if flyConnection then
@@ -108,57 +123,60 @@ local function stopFly()
         bodyGyro:Destroy()
         bodyGyro = nil
     end
+    print("Fly desativado!")
 end
 
 -- Toggle Fly
-local ToggleFly = FlySection:AddToggle({
+Tab1:AddToggle({
     Name = "Ativar Fly",
-    Description = "Ative o modo de voo para explorar o mapa",
-    Default = false
-})
-ToggleFly:Callback(function(value)
-    if value then
-        startFly()
-    else
-        stopFly()
+    Default = false,
+    Callback = function(v)
+        print("Toggle Fly:", v)
+        if v then
+            startFly()
+        else
+            stopFly()
+        end
     end
-end)
+})
 
--- Slider velocidade do Fly
-FlySection:AddSlider({
-    Text = "Velocidade do Fly",
+print("Toggle Fly adicionado!")
+
+-- Slider Fly Speed
+Tab1:AddSlider({
+    Text = "Velocidade Fly",
     Min = 10,
     Max = 200,
     Default = 50,
     Callback = function(value)
         flySpeed = value
+        print("Velocidade Fly alterada para:", value)
     end
 })
 
--- Adicionar informações de controle
-FlySection:AddParagraph({"Controles do Fly", "W/A/S/D - Mover\nEspaço - Subir\nShift - Descer"})
+print("Slider Fly adicionado!")
 
 -- Seção Speed
-local SpeedSection = MovementTab:AddSection({"Sistema de Velocidade"})
+Tab1:AddSection({"Sistema de Velocidade"})
 
 -- Toggle Speed
-local ToggleSpeed = SpeedSection:AddToggle({
+Tab1:AddToggle({
     Name = "Ativar Speed",
-    Description = "Aumente sua velocidade de corrida",
-    Default = false
-})
-ToggleSpeed:Callback(function(value)
-    speedEnabled = value
-    if speedEnabled then
-        humanoid.WalkSpeed = speedValue
-    else
-        humanoid.WalkSpeed = 16
+    Default = false,
+    Callback = function(v)
+        print("Toggle Speed:", v)
+        speedEnabled = v
+        if speedEnabled then
+            humanoid.WalkSpeed = speedValue
+        else
+            humanoid.WalkSpeed = 16
+        end
     end
-end)
+})
 
 -- Slider Speed
-SpeedSection:AddSlider({
-    Text = "Velocidade de Corrida",
+Tab1:AddSlider({
+    Text = "Velocidade Corrida",
     Min = 0,
     Max = 100,
     Default = 16,
@@ -167,29 +185,30 @@ SpeedSection:AddSlider({
         if speedEnabled then
             humanoid.WalkSpeed = speedValue
         end
+        print("Velocidade alterada para:", value)
     end
 })
 
 -- Seção Jump
-local JumpSection = MovementTab:AddSection({"Sistema de Pulo"})
+Tab1:AddSection({"Sistema de Pulo"})
 
 -- Toggle Jump
-local ToggleJump = JumpSection:AddToggle({
+Tab1:AddToggle({
     Name = "Ativar Jump Power",
-    Description = "Aumente a força do seu pulo",
-    Default = false
-})
-ToggleJump:Callback(function(value)
-    jumpEnabled = value
-    if jumpEnabled then
-        humanoid.JumpPower = jumpValue
-    else
-        humanoid.JumpPower = 50
+    Default = false,
+    Callback = function(v)
+        print("Toggle Jump:", v)
+        jumpEnabled = v
+        if jumpEnabled then
+            humanoid.JumpPower = jumpValue
+        else
+            humanoid.JumpPower = 50
+        end
     end
-end)
+})
 
--- Slider Jump Power
-JumpSection:AddSlider({
+-- Slider Jump
+Tab1:AddSlider({
     Text = "Força do Pulo",
     Min = 0,
     Max = 200,
@@ -199,18 +218,19 @@ JumpSection:AddSlider({
         if jumpEnabled then
             humanoid.JumpPower = jumpValue
         end
+        print("Jump Power alterado para:", value)
     end
 })
 
--- Tab de Configurações
-local SettingsTab = Window:MakeTab({"Configurações", "rbxassetid://7733955511"})
+-- Tab de Config
+local Tab2 = Window:MakeTab({"Config", "rbxassetid://7733955511"})
 
-local ConfigSection = SettingsTab:AddSection({"Sobre o Hub"})
+Tab2:AddSection({"Sobre"})
 
-ConfigSection:AddParagraph({"Dragon Hub v0.2", "Desenvolvido para Roblox\n\nFuncionalidades:\n• Sistema de Voo\n• Velocidade Customizada\n• Pulo Aprimorado\n• Interface Profissional"})
+Tab2:AddParagraph({"Dragon Hub v0.2", "Sistema completo de movimento\n\nFuncionalidades:\n• Fly System\n• Speed Boost\n• Jump Power"})
 
--- Botão para destruir a UI
-ConfigSection:AddButton({"Fechar Hub", function()
+Tab2:AddButton({"Fechar Hub", function()
+    print("Fechando hub...")
     if flyEnabled then
         stopFly()
     end
@@ -218,6 +238,8 @@ ConfigSection:AddButton({"Fechar Hub", function()
         Window:Destroy()
     end
 end})
+
+print("Dragon Hub 0.2 totalmente carregado!")
 
 -- Atualizar character ao respawnar
 player.CharacterAdded:Connect(function(char)
@@ -237,5 +259,3 @@ player.CharacterAdded:Connect(function(char)
         humanoid.JumpPower = 50
     end
 end)
-
-print("Dragon Hub 0.2 carregado com sucesso!")
