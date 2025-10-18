@@ -1,6 +1,4 @@
--- Dragon Hub 0.2 - Teste com Redz Library
-
-print("Iniciando Dragon Hub...")
+-- Dragon Hub 0.2 - Redz Library
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -11,7 +9,6 @@ local character = player.Character or player.CharacterAdded:Wait()
 local humanoid = character:WaitForChild("Humanoid")
 local rootPart = character:WaitForChild("HumanoidRootPart")
 
--- Variáveis de controle
 local flyEnabled = false
 local speedEnabled = false
 local jumpEnabled = false
@@ -19,243 +16,127 @@ local speedValue = 16
 local jumpValue = 50
 local flySpeed = 50
 
-local bodyVelocity
-local bodyGyro
-local flyConnection
+local bodyVelocity, bodyGyro, flyConnection
 
-print("Carregando Redz Library...")
+local redzlib = loadstring(game:HttpGet("https://raw.githubusercontent.com/tbao143/Library-ui/refs/heads/main/Redzhubui"))()
 
--- Carregar Redz Library
-local success, redzlib = pcall(function()
-    return loadstring(game:HttpGet("https://raw.githubusercontent.com/tbao143/Library-ui/refs/heads/main/Redzhubui"))()
-end)
-
-if not success then
-    warn("Erro ao carregar Redz Library:", redzlib)
-    return
-end
-
-print("Redz Library carregada! Criando window...")
-
--- Criar Window
 local Window = redzlib:MakeWindow({
     Title = "Dragon Hub 0.2",
-    SubTitle = "By Dragon Team"
+    SubTitle = "Sistema de Movimento"
 })
 
-print("Window criada! Adicionando tabs...")
-
--- Tab de Movimento
 local Tab1 = Window:MakeTab({"Movimento", "rbxassetid://7733764088"})
 
-print("Tab criada! Adicionando seção...")
-
--- Seção Fly
-Tab1:AddSection({"Sistema de Voo"})
-
-print("Seção adicionada! Adicionando toggle...")
-
--- Funções Fly
 local function startFly()
-    print("Iniciando fly...")
     flyEnabled = true
-    
     bodyGyro = Instance.new("BodyGyro")
     bodyGyro.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
     bodyGyro.P = 9000
-    bodyGyro.D = 500
     bodyGyro.Parent = rootPart
     
     bodyVelocity = Instance.new("BodyVelocity")
     bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
     bodyVelocity.Velocity = Vector3.new(0, 0.1, 0)
-    bodyVelocity.P = 1250
     bodyVelocity.Parent = rootPart
     
     flyConnection = RunService.Heartbeat:Connect(function()
         local camera = workspace.CurrentCamera
-        local speed = flySpeed
-        local moveVector = Vector3.new(0, 0, 0)
+        local move = Vector3.new(0, 0, 0)
         
-        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-            moveVector = moveVector + camera.CFrame.LookVector
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-            moveVector = moveVector - camera.CFrame.LookVector
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-            moveVector = moveVector - camera.CFrame.RightVector
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-            moveVector = moveVector + camera.CFrame.RightVector
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-            moveVector = moveVector + Vector3.new(0, 1, 0)
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.RightShift) then
-            moveVector = moveVector - Vector3.new(0, 1, 0)
-        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then move = move + camera.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then move = move - camera.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then move = move - camera.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then move = move + camera.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then move = move + Vector3.new(0, 1, 0) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then move = move - Vector3.new(0, 1, 0) end
         
-        if moveVector.Magnitude > 0 then
-            bodyVelocity.Velocity = moveVector.Unit * speed
-        else
-            bodyVelocity.Velocity = Vector3.new(0, 0.1, 0)
-        end
-        
+        bodyVelocity.Velocity = move.Magnitude > 0 and move.Unit * flySpeed or Vector3.new(0, 0.1, 0)
         bodyGyro.CFrame = camera.CFrame
     end)
-    print("Fly ativado!")
 end
 
 local function stopFly()
-    print("Parando fly...")
     flyEnabled = false
-    
-    if flyConnection then
-        flyConnection:Disconnect()
-        flyConnection = nil
-    end
-    if bodyVelocity then
-        bodyVelocity:Destroy()
-        bodyVelocity = nil
-    end
-    if bodyGyro then
-        bodyGyro:Destroy()
-        bodyGyro = nil
-    end
-    print("Fly desativado!")
+    if flyConnection then flyConnection:Disconnect() end
+    if bodyVelocity then bodyVelocity:Destroy() end
+    if bodyGyro then bodyGyro:Destroy() end
 end
 
--- Toggle Fly
+Tab1:AddSection({"Fly System"})
+
 Tab1:AddToggle({
     Name = "Ativar Fly",
     Default = false,
     Callback = function(v)
-        print("Toggle Fly:", v)
-        if v then
-            startFly()
-        else
-            stopFly()
-        end
+        if v then startFly() else stopFly() end
     end
 })
 
-print("Toggle Fly adicionado!")
-
--- Slider Fly Speed
 Tab1:AddSlider({
     Text = "Velocidade Fly",
     Min = 10,
     Max = 200,
     Default = 50,
-    Callback = function(value)
-        flySpeed = value
-        print("Velocidade Fly alterada para:", value)
-    end
+    Callback = function(v) flySpeed = v end
 })
 
-print("Slider Fly adicionado!")
+Tab1:AddSection({"Speed System"})
 
--- Seção Speed
-Tab1:AddSection({"Sistema de Velocidade"})
-
--- Toggle Speed
 Tab1:AddToggle({
     Name = "Ativar Speed",
     Default = false,
     Callback = function(v)
-        print("Toggle Speed:", v)
         speedEnabled = v
-        if speedEnabled then
-            humanoid.WalkSpeed = speedValue
-        else
-            humanoid.WalkSpeed = 16
-        end
+        humanoid.WalkSpeed = v and speedValue or 16
     end
 })
 
--- Slider Speed
 Tab1:AddSlider({
-    Text = "Velocidade Corrida",
+    Text = "Velocidade",
     Min = 0,
     Max = 100,
     Default = 16,
-    Callback = function(value)
-        speedValue = value
-        if speedEnabled then
-            humanoid.WalkSpeed = speedValue
-        end
-        print("Velocidade alterada para:", value)
+    Callback = function(v)
+        speedValue = v
+        if speedEnabled then humanoid.WalkSpeed = v end
     end
 })
 
--- Seção Jump
-Tab1:AddSection({"Sistema de Pulo"})
+Tab1:AddSection({"Jump System"})
 
--- Toggle Jump
 Tab1:AddToggle({
-    Name = "Ativar Jump Power",
+    Name = "Ativar Jump",
     Default = false,
     Callback = function(v)
-        print("Toggle Jump:", v)
         jumpEnabled = v
-        if jumpEnabled then
-            humanoid.JumpPower = jumpValue
-        else
-            humanoid.JumpPower = 50
-        end
+        humanoid.JumpPower = v and jumpValue or 50
     end
 })
 
--- Slider Jump
 Tab1:AddSlider({
     Text = "Força do Pulo",
     Min = 0,
     Max = 200,
     Default = 50,
-    Callback = function(value)
-        jumpValue = value
-        if jumpEnabled then
-            humanoid.JumpPower = jumpValue
-        end
-        print("Jump Power alterado para:", value)
+    Callback = function(v)
+        jumpValue = v
+        if jumpEnabled then humanoid.JumpPower = v end
     end
 })
 
--- Tab de Config
 local Tab2 = Window:MakeTab({"Config", "rbxassetid://7733955511"})
 
 Tab2:AddSection({"Sobre"})
+Tab2:AddParagraph({"Dragon Hub 0.2", "Sistema completo de movimento"})
 
-Tab2:AddParagraph({"Dragon Hub v0.2", "Sistema completo de movimento\n\nFuncionalidades:\n• Fly System\n• Speed Boost\n• Jump Power"})
-
-Tab2:AddButton({"Fechar Hub", function()
-    print("Fechando hub...")
-    if flyEnabled then
-        stopFly()
-    end
-    if Window then
-        Window:Destroy()
-    end
+Tab2:AddButton({"Fechar", function()
+    if flyEnabled then stopFly() end
+    Window:Destroy()
 end})
 
-print("Dragon Hub 0.2 totalmente carregado!")
-
--- Atualizar character ao respawnar
 player.CharacterAdded:Connect(function(char)
     character = char
-    humanoid = character:WaitForChild("Humanoid")
-    rootPart = character:WaitForChild("HumanoidRootPart")
-    
-    if flyEnabled then
-        stopFly()
-    end
-    if speedEnabled then
-        speedEnabled = false
-        humanoid.WalkSpeed = 16
-    end
-    if jumpEnabled then
-        jumpEnabled = false
-        humanoid.JumpPower = 50
-    end
+    humanoid = char:WaitForChild("Humanoid")
+    rootPart = char:WaitForChild("HumanoidRootPart")
+    if flyEnabled then stopFly() end
 end)
