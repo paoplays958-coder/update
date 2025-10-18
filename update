@@ -1,284 +1,409 @@
--- LocalScript: Sistema completo com detecção de dispositivo, fly e outras funcionalidades
+loadstring([[
+-- Dragon Hub 0.2 - Sistema Completo
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Lighting = game:GetService("Lighting")
+
 local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local rootPart = character:WaitForChild("HumanoidRootPart")
 
--- ===========================
--- DETECÇÃO AUTOMÁTICA DE DISPOSITIVO
--- ===========================
-
-local function detectDevice()
-    if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
-        return "Mobile"
-    elseif UserInputService.KeyboardEnabled then
-        return "PC"
-    elseif UserInputService.GamepadEnabled then
-        return "Console"
-    else
-        return "Desconhecido"
-    end
-end
-
-local deviceType = detectDevice()
-print("Dispositivo detectado: " .. deviceType)
-
--- ===========================
--- SISTEMA DE FLY UNIVERSAL
--- ===========================
-
+-- Variáveis de controle
 local flyEnabled = false
 local speedEnabled = false
 local jumpEnabled = false
+local noclipEnabled = false
 local speedValue = 16
 local jumpValue = 50
 local flySpeed = 50
+local selectedSkyColor = "Azul"
+local selectedPlayer = nil
 
-local skies = {
-    ["Blue"] = Color3.fromRGB(0, 0, 255),
-    ["Red"] = Color3.fromRGB(255, 0, 0),
-    ["Green"] = Color3.fromRGB(0, 255, 0),
-    ["Purple"] = Color3.fromRGB(128, 0, 128),
-}
+local bodyVelocity, bodyGyro, flyConnection, noclipConnection
 
-local currentSkyColor = "Blue"
-
-local bodyVelocity, bodyGyro, flyConnection
-
--- ===========================
--- INTERFACE GRÁFICA (GUI)
--- ===========================
-
+-- Carregar Redz Library
 local redzlib = loadstring(game:HttpGet("https://raw.githubusercontent.com/tbao143/Library-ui/refs/heads/main/Redzhubui"))()
 
 local Window = redzlib:MakeWindow({
-    Name = "Script Hub - " .. deviceType,
-    HidePremium = false,
-    SaveConfig = true,
-    ConfigFolder = "ScriptHub"
+    Title = "Dragon Hub 0.2",
+    SubTitle = "Sistema Completo"
 })
 
--- Tab: Movimento
-local TabFly = Window:MakeTab({
-    Name = "Movimento",
-    Icon = "rbxassetid://7733764088",
-    PremiumOnly = false
-})
+-- ============================================
+-- TAB 1: MOVIMENTO
+-- ============================================
+local Tab1 = Window:MakeTab({"Movimento", "rbxassetid://7733764088"})
 
-TabFly:AddToggle({
-    Name = "Ativar Fly",
-    Default = false,
-    Callback = function(value)
-        if value then startFly() else stopFly() end
-    end
-})
-
-TabFly:AddSlider({
-    Name = "Velocidade Fly",
-    Min = 10,
-    Max = 200,
-    Default = 50,
-    Color = Color3.fromRGB(0, 170, 255),
-    Increment = 5,
-    ValueName = "Velocidade",
-    Callback = function(value)
-        flySpeed = value
-    end
-})
-
-TabFly:AddToggle({
-    Name = "Ativar Speed",
-    Default = false,
-    Callback = function(value)
-        speedEnabled = value
-        humanoid.WalkSpeed = value and speedValue or 16
-    end
-})
-
-TabFly:AddSlider({
-    Text = "Velocidade",
-    Min = 0,
-    Max = 100,
-    Default = 16,
-    Callback = function(value)
-        speedValue = value
-        if speedEnabled then humanoid.WalkSpeed = value end
-    end
-})
-
-TabFly:AddToggle({
-    Name = "Ativar Jump",
-    Default = false,
-    Callback = function(value)
-        jumpEnabled = value
-        humanoid.JumpPower = value and jumpValue or 50
-    end
-})
-
-TabFly:AddSlider({
-    Text = "Força do Pulo",
-    Min = 0,
-    Max = 200,
-    Default = 50,
-    Callback = function(value)
-        jumpValue = value
-        if jumpEnabled then humanoid.JumpPower = value end
-    end
-})
-
--- Tab: Configurações
-local TabConfig = Window:MakeTab({
-    Name = "Configurações",
-    Icon = "rbxassetid://7733955511",
-    PremiumOnly = false
-})
-
-TabConfig:AddLabel({
-    Text = "Cor do Céu Atual: " .. currentSkyColor
-})
-
-local function showColorPicker()
-    local color3Picker = Instance.new("Color3Picker")
-    color3Picker.Parent = player:WaitForChild("PlayerGui")
-    color3Picker.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    color3Picker.BorderSizePixel = 0
-    color3Picker.Position = UDim2.new(0.8, 0, 0.8, 0)
-    color3Picker.Size = UDim2.new(0, 150, 0, 100)
-    color3Picker.Changed:Connect(function()
-        currentSkyColor = color3Picker.Color.Name
-        TabConfig:FindFirstChildWhichIsA("Label"):GetChildren()[1].Text = "Cor do Céu Atual: " .. currentSkyColor
-        changeSkyColor(color3Picker.Color)
-    end)
-    color3Picker:GetChildren()[1].Text = "Selecione a cor do céu"
-end
-
-TabConfig:AddButton({
-    Name = "Trocar Cor do Céu",
-    Callback = function() showColorPicker() end
-})
-
--- Função para ativar o fly
+-- Funções Fly (CORRIGIDO)
 local function startFly()
     if flyEnabled then return end
     flyEnabled = true
-
-    local character = player.Character
-    if not character then return end
-
-    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
-    local humanoid = character:FindFirstChild("Humanoid")
-    if not humanoidRootPart or not humanoid then return end
-
-    bodyVelocity = Instance.new("BodyVelocity")
-    bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-    bodyVelocity.Velocity = Vector3.new(0, 0.1, 0)
-    bodyVelocity.Parent = humanoidRootPart
-
+    print("Fly ativado!")
+    
+    -- Desabilitar gravidade
+    local bodyForce = Instance.new("BodyForce")
+    bodyForce.Name = "FlyForce"
+    bodyForce.Force = Vector3.new(0, workspace.Gravity * rootPart:GetMass(), 0)
+    bodyForce.Parent = rootPart
+    
     bodyGyro = Instance.new("BodyGyro")
-    bodyGyro.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+    bodyGyro.MaxTorque = Vector3.new(100000, 100000, 100000)
     bodyGyro.P = 9000
-    bodyGyro.Parent = humanoidRootPart
-
+    bodyGyro.Parent = rootPart
+    
+    bodyVelocity = Instance.new("BodyVelocity")
+    bodyVelocity.MaxForce = Vector3.new(100000, 100000, 100000)
+    bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+    bodyVelocity.Parent = rootPart
+    
     flyConnection = RunService.Heartbeat:Connect(function()
+        if not flyEnabled then return end
         local camera = workspace.CurrentCamera
         local move = Vector3.new(0, 0, 0)
-
+        
         if UserInputService:IsKeyDown(Enum.KeyCode.W) then move = move + camera.CFrame.LookVector end
         if UserInputService:IsKeyDown(Enum.KeyCode.S) then move = move - camera.CFrame.LookVector end
         if UserInputService:IsKeyDown(Enum.KeyCode.A) then move = move - camera.CFrame.RightVector end
         if UserInputService:IsKeyDown(Enum.KeyCode.D) then move = move + camera.CFrame.RightVector end
         if UserInputService:IsKeyDown(Enum.KeyCode.Space) then move = move + Vector3.new(0, 1, 0) end
         if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then move = move - Vector3.new(0, 1, 0) end
-
-        bodyVelocity.Velocity = move.Magnitude > 0 and move.Unit * flySpeed or Vector3.new(0, 0.1, 0)
+        
+        bodyVelocity.Velocity = move.Magnitude > 0 and move.Unit * flySpeed or Vector3.new(0, 0, 0)
         bodyGyro.CFrame = camera.CFrame
     end)
 end
 
--- Função para desativar o fly
 local function stopFly()
     flyEnabled = false
-
-    if bodyVelocity then bodyVelocity:Destroy() end
-    if bodyGyro then bodyGyro:Destroy() end
-    if flyConnection then flyConnection:Disconnect() end
+    print("Fly desativado!")
+    if flyConnection then flyConnection:Disconnect() flyConnection = nil end
+    if bodyVelocity then bodyVelocity:Destroy() bodyVelocity = nil end
+    if bodyGyro then bodyGyro:Destroy() bodyGyro = nil end
+    local bodyForce = rootPart:FindFirstChild("FlyForce")
+    if bodyForce then bodyForce:Destroy() end
 end
 
--- Função para mudar a cor do céu
-local function changeSkyColor(color)
-    local lighting = game:GetService("Lighting")
-
-    if color then
-        local skyColor = skies[color]
-        if skyColor then
-            lighting.Sky.SkyboxBk.Color = skyColor
-            lighting.Sky.SkyboxDn.Color = skyColor
-            lighting.Sky.SkyboxFt.Color = skyColor
-            lighting.Sky.SkyboxLf.Color = skyColor
-            lighting.Sky.SkyboxRt.Color = skyColor
-            lighting.Sky.SkyboxUp.Color = skyColor
-
-            game:GetService("ReplicatedStorage"):WaitForChild("ChangeSkyEvent"):FireServer(color)
-        end
-    end
-end
-
--- Atalho para PC
-if deviceType == "PC" then
-    UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if gameProcessed then return end
-
-        if input.KeyCode == Enum.KeyCode.F then
-            if flyEnabled then
-                stopFly()
-            else
-                startFly()
+-- Funções Noclip
+local function startNoclip()
+    noclipEnabled = true
+    print("Noclip ativado!")
+    noclipConnection = RunService.Stepped:Connect(function()
+        if not noclipEnabled then return end
+        for _, part in pairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
             end
         end
     end)
 end
 
--- Evento para mudar a cor do céu no servidor
-game:GetService("ReplicatedStorage"):WaitForChild("ChangeSkyEvent"):Connect(function(color)
-    local targetColor = skies[color]
-    if targetColor then
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player ~= player then
-                local lighting = player.Character:FindFirstChildOfClass("Lighting")
-                if lighting then
-                    lighting.Sky.SkyboxBk.Color = targetColor
-                    lighting.Sky.SkyboxDn.Color = targetColor
-                    lighting.Sky.SkyboxFt.Color = targetColor
-                    lighting.Sky.SkyboxLf.Color = targetColor
-                    lighting.Sky.SkyboxRt.Color = targetColor
-                    lighting.Sky.SkyboxUp.Color = targetColor
-                end
-            end
+local function stopNoclip()
+    noclipEnabled = false
+    print("Noclip desativado!")
+    if noclipConnection then noclipConnection:Disconnect() noclipConnection = nil end
+    for _, part in pairs(character:GetDescendants()) do
+        if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+            part.CanCollide = true
         end
     end
-end)
--- Adiciona um botão para NoClip
-Tab1:AddSection({"NoClip"})
+end
 
--- Cria um botão para ativar e desativar o NoClip
-local toggleNoClip = Tab1:AddToggle({
-    Name = "NoClip",
+-- Seção Fly
+Tab1:AddSection({"Fly System"})
+
+Tab1:AddToggle({
+    Name = "Ativar Fly",
     Default = false,
-    Callback = function(value)
-        if value then
-            for _, part in ipairs(player.Character:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.Anchored = false
+    Callback = function(v)
+        if v then startFly() else stopFly() end
+    end
+})
+
+Tab1:AddSlider({
+    Text = "Velocidade Fly",
+    Min = 10,
+    Max = 200,
+    Default = 50,
+    Callback = function(v) flySpeed = v end
+})
+
+-- Seção Speed
+Tab1:AddSection({"Speed System"})
+
+Tab1:AddToggle({
+    Name = "Ativar Speed",
+    Default = false,
+    Callback = function(v)
+        speedEnabled = v
+        humanoid.WalkSpeed = v and speedValue or 16
+    end
+})
+
+Tab1:AddSlider({
+    Text = "Velocidade",
+    Min = 0,
+    Max = 100,
+    Default = 16,
+    Callback = function(v)
+        speedValue = v
+        if speedEnabled then humanoid.WalkSpeed = v end
+    end
+})
+
+-- Seção Jump
+Tab1:AddSection({"Jump System"})
+
+Tab1:AddToggle({
+    Name = "Ativar Jump",
+    Default = false,
+    Callback = function(v)
+        jumpEnabled = v
+        humanoid.JumpPower = v and jumpValue or 50
+    end
+})
+
+Tab1:AddSlider({
+    Text = "Força do Pulo",
+    Min = 0,
+    Max = 200,
+    Default = 50,
+    Callback = function(v)
+        jumpValue = v
+        if jumpEnabled then humanoid.JumpPower = v end
+    end
+})
+
+-- Seção Noclip
+Tab1:AddSection({"Noclip System"})
+
+Tab1:AddToggle({
+    Name = "Ativar Noclip",
+    Default = false,
+    Callback = function(v)
+        if v then startNoclip() else stopNoclip() end
+    end
+})
+
+-- Seção Cor do Céu
+Tab1:AddSection({"Cor do Céu"})
+
+Tab1:AddDropdown({
+    Name = "Escolher Cor",
+    Options = {"Azul", "Vermelho", "Verde", "Roxo"},
+    Default = "Azul",
+    Callback = function(v)
+        selectedSkyColor = v
+        print("Cor selecionada:", v)
+    end
+})
+
+Tab1:AddButton({"Aplicar Cor do Céu", function()
+    local colors = {
+        Azul = Color3.fromRGB(135, 206, 235),
+        Vermelho = Color3.fromRGB(220, 20, 60),
+        Verde = Color3.fromRGB(34, 139, 34),
+        Roxo = Color3.fromRGB(138, 43, 226)
+    }
+    
+    if Lighting:FindFirstChildOfClass("Sky") then
+        Lighting:FindFirstChildOfClass("Sky").SkyboxBk = ""
+        Lighting:FindFirstChildOfClass("Sky").SkyboxDn = ""
+        Lighting:FindFirstChildOfClass("Sky").SkyboxFt = ""
+        Lighting:FindFirstChildOfClass("Sky").SkyboxLf = ""
+        Lighting:FindFirstChildOfClass("Sky").SkyboxRt = ""
+        Lighting:FindFirstChildOfClass("Sky").SkyboxUp = ""
+    end
+    
+    Lighting.OutdoorAmbient = colors[selectedSkyColor]
+    Lighting.Ambient = colors[selectedSkyColor]
+    Lighting.FogColor = colors[selectedSkyColor]
+    
+    print("Cor do céu alterada para:", selectedSkyColor)
+end})
+
+-- ============================================
+-- TAB 2: TOOLS
+-- ============================================
+local Tab2 = Window:MakeTab({"Tools", "rbxassetid://7733911816"})
+
+Tab2:AddSection({"Ferramentas"})
+
+Tab2:AddButton({"Pegar Todos os Itens", function()
+    for _, v in pairs(workspace:GetDescendants()) do
+        if v:IsA("Tool") then
+            v.Parent = player.Backpack
+        end
+    end
+    print("Todos os itens coletados!")
+end})
+
+Tab2:AddButton({"Modo Construção", function()
+    local buildTool = Instance.new("Tool")
+    buildTool.Name = "Build Tool"
+    buildTool.RequiresHandle = false
+    
+    local handle = Instance.new("Part")
+    handle.Name = "Handle"
+    handle.Size = Vector3.new(1, 1, 1)
+    handle.Transparency = 1
+    handle.Parent = buildTool
+    
+    buildTool.Activated:Connect(function()
+        local part = Instance.new("Part")
+        part.Size = Vector3.new(4, 1, 4)
+        part.Anchored = true
+        part.Position = rootPart.Position + Vector3.new(0, 3, 0)
+        part.Parent = workspace
+    end)
+    
+    buildTool.Parent = player.Backpack
+    print("Ferramenta de construção adicionada!")
+end})
+
+Tab2:AddSection({"Espionar"})
+
+local spyDropdown = Tab2:AddDropdown({
+    Name = "Selecionar Jogador",
+    Options = {},
+    Default = "",
+    Callback = function(v)
+        selectedPlayer = v
+    end
+})
+
+-- Atualizar lista de jogadores
+local function updatePlayerList()
+    local playerNames = {}
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= player then
+            table.insert(playerNames, p.Name)
+        end
+    end
+    return playerNames
+end
+
+-- Atualizar dropdown a cada 5 segundos
+task.spawn(function()
+    while true do
+        if spyDropdown then
+            spyDropdown:Refresh(updatePlayerList(), true)
+        end
+        task.wait(5)
+    end
+end)
+
+Tab2:AddButton({"Espiar Jogador", function()
+    if selectedPlayer then
+        local targetPlayer = Players:FindFirstChild(selectedPlayer)
+        if targetPlayer and targetPlayer.Character then
+            workspace.CurrentCamera.CameraSubject = targetPlayer.Character.Humanoid
+            print("Espiando:", selectedPlayer)
+        end
+    end
+end})
+
+Tab2:AddButton({"Parar de Espiar", function()
+    workspace.CurrentCamera.CameraSubject = humanoid
+    print("Visão restaurada")
+end})
+
+-- ============================================
+-- TAB 3: ADMIN
+-- ============================================
+local Tab3 = Window:MakeTab({"Admin", "rbxassetid://7733955511"})
+
+Tab3:AddSection({"Poderes Admin"})
+
+Tab3:AddToggle({
+    Name = "Anti-Ban de Casa",
+    Default = false,
+    Callback = function(v)
+        if v then
+            -- Remover restrições de casas
+            for _, v in pairs(workspace:GetDescendants()) do
+                if v:IsA("Part") and v.Name:lower():find("ban") then
+                    v:Destroy()
                 end
             end
-        else
-            for _, part in ipairs(player.Character:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.Anchored = true
-                end
-            end
+            print("Anti-Ban ativado!")
         end
     end
 })
+
+Tab3:AddSection({"Teleporte para Jogadores"})
+
+local tpDropdown = Tab3:AddDropdown({
+    Name = "Selecionar Jogador",
+    Options = {},
+    Default = "",
+    Callback = function(v)
+        selectedPlayer = v
+    end
+})
+
+-- Atualizar lista de jogadores para teleporte
+task.spawn(function()
+    while true do
+        if tpDropdown then
+            tpDropdown:Refresh(updatePlayerList(), true)
+        end
+        task.wait(5)
+    end
+end)
+
+Tab3:AddButton({"Teleportar para Jogador", function()
+    if selectedPlayer then
+        local targetPlayer = Players:FindFirstChild(selectedPlayer)
+        if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            rootPart.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame + Vector3.new(0, 3, 0)
+            print("Teleportado para:", selectedPlayer)
+        else
+            print("Jogador não encontrado ou sem personagem")
+        end
+    else
+        print("Selecione um jogador primeiro!")
+    end
+end})
+
+Tab3:AddButton({"Desbanir de Todas as Casas", function()
+    for _, v in pairs(workspace:GetDescendants()) do
+        if v:IsA("Script") or v:IsA("LocalScript") then
+            if v.Name:lower():find("ban") or v.Name:lower():find("kick") then
+                v:Destroy()
+            end
+        end
+    end
+    print("Desbanido de todas as casas!")
+end})
+
+-- ============================================
+-- TAB 4: CONFIG
+-- ============================================
+local Tab4 = Window:MakeTab({"Config", "rbxassetid://7733965118"})
+
+Tab4:AddSection({"Sobre"})
+Tab4:AddParagraph({"Dragon Hub 0.2", "Sistema completo de movimento\n\nFeatures:\n• Fly, Speed, Jump\n• Noclip\n• Mudar cor do céu\n• Tools & Admin\n• Teleporte entre jogadores"})
+
+Tab4:AddButton({"Fechar Hub", function()
+    if flyEnabled then stopFly() end
+    if noclipEnabled then stopNoclip() end
+    Window:Destroy()
+    print("Dragon Hub fechado!")
+end})
+
+-- ============================================
+-- SISTEMA DE RESPAWN
+-- ============================================
+player.CharacterAdded:Connect(function(char)
+    character = char
+    humanoid = char:WaitForChild("Humanoid")
+    rootPart = char:WaitForChild("HumanoidRootPart")
+    if flyEnabled then stopFly() end
+    if noclipEnabled then stopNoclip() end
+end)
+
+print("Dragon Hub 0.2 carregado com sucesso!")
+]])()
