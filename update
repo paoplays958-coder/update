@@ -1,117 +1,19 @@
--- Dragon Hub 0.2 - Sistema Completo
+loadstring([[
+-- Dragon Hub 0.2 - Script Completo e Funcional
+
+print("Iniciando Dragon Hub 0.2...")
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
-local GuiService = game:GetService("GuiService")
-local TweenService = game:GetService("TweenService")
+local Lighting = game:GetService("Lighting")
 
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local humanoid = character:WaitForChild("Humanoid")
 local rootPart = character:WaitForChild("HumanoidRootPart")
 
--- ============================================
--- SISTEMA DE DETECÇÃO DE PLATAFORMA
--- ============================================
-local PlatformDetector = {}
-
-function PlatformDetector:Detect()
-    local platform = {
-        Type = "Unknown",
-        HasKeyboard = UserInputService.KeyboardEnabled,
-        HasMouse = UserInputService.MouseEnabled,
-        HasTouch = UserInputService.TouchEnabled,
-        HasGamepad = UserInputService.GamepadEnabled,
-        IsVR = UserInputService.VREnabled,
-        IsMobile = false,
-        IsPC = false,
-        IsConsole = false,
-        IsTablet = false
-    }
-
-    -- Detectar Mobile
-    if platform.HasTouch and not platform.HasKeyboard and not platform.HasMouse then
-        platform.IsMobile = true
-        platform.Type = "Mobile"
-
-        -- Diferenciar Phone vs Tablet pelo tamanho da tela
-        local screenSize = workspace.CurrentCamera.ViewportSize
-        if screenSize.X > 1000 or screenSize.Y > 1000 then
-            platform.IsTablet = true
-            platform.Type = "Tablet"
-        end
-    end
-
-    -- Detectar PC
-    if platform.HasKeyboard and platform.HasMouse and not platform.HasTouch then
-        platform.IsPC = true
-        platform.Type = "PC"
-    end
-
-    -- Detectar Console (Xbox, PlayStation)
-    if platform.HasGamepad and not platform.HasKeyboard and not platform.HasMouse and not platform.HasTouch then
-        platform.IsConsole = true
-        platform.Type = "Console"
-    end
-
-    -- Detectar VR
-    if platform.IsVR then
-        platform.Type = "VR Headset"
-    end
-
-    return platform
-end
-
-local CurrentPlatform = PlatformDetector:Detect()
-
--- Print de detecção
-print("╔══════════════════════════════════════╗")
-print("║     DRAGON HUB - PLATFORM DETECTOR    ║")
-print("╚══════════════════════════════════════╝")
-print("🎮 Plataforma detectada:", CurrentPlatform.Type)
-print("⌨️ Teclado:", CurrentPlatform.HasKeyboard and "✓" or "✗")
-print("🖱️ Mouse:", CurrentPlatform.HasMouse and "✓" or "✗")
-print("📱 Touch:", CurrentPlatform.HasTouch and "✓" or "✗")
-print("🎮 Gamepad:", CurrentPlatform.HasGamepad and "✓" or "✗")
-print("🥽 VR:", CurrentPlatform.IsVR and "✓" or "✗")
-print("═════════════════════════════════════════")
-
--- Configurações de UI baseadas na plataforma
-local UIConfig = {
-    PC = {
-        WindowSize = UDim2.new(0, 500, 0, 550),
-        ButtonSize = UDim2.new(1, -20, 0, 40),
-        TextSize = 14,
-        Padding = 10,
-        UseCompactMode = false
-    },
-    Mobile = {
-        WindowSize = UDim2.new(0, 350, 0, 450),
-        ButtonSize = UDim2.new(1, -20, 0, 50),
-        TextSize = 16,
-        Padding = 8,
-        UseCompactMode = true
-    },
-    Tablet = {
-        WindowSize = UDim2.new(0, 450, 0, 500),
-        ButtonSize = UDim2.new(1, -20, 0, 45),
-        TextSize = 15,
-        Padding = 10,
-        UseCompactMode = false
-    },
-    Console = {
-        WindowSize = UDim2.new(0, 600, 0, 600),
-        ButtonSize = UDim2.new(1, -30, 0, 50),
-        TextSize = 18,
-        Padding = 15,
-        UseCompactMode = false
-    }
-}
-
-local ActiveConfig = UIConfig[CurrentPlatform.Type] or UIConfig.PC
-
--- Variáveis de controle
+-- Variáveis
 local flyEnabled = false
 local speedEnabled = false
 local jumpEnabled = false
@@ -119,180 +21,71 @@ local noclipEnabled = false
 local speedValue = 16
 local jumpValue = 50
 local flySpeed = 50
-local selectedSkyColor = "Normal"
-local selectedPlayerSpy = nil
-local selectedPlayerTP = nil
-local vehicleAmount = 1
-local selectedVehicle = "Bloxy"
-local selectedCarForSpeed = nil
-local carSpeedValue = 50
-local carTurboValue = 100
-
--- Salvar configurações originais do céu
-local originalSkySettings = {
-    Ambient = Lighting.Ambient,
-    OutdoorAmbient = Lighting.OutdoorAmbient,
-    FogColor = Lighting.FogColor,
-    FogEnd = Lighting.FogEnd,
-    FogStart = Lighting.FogStart
-}
 
 local bodyVelocity, bodyGyro, flyConnection, noclipConnection
 
--- Função para obter lista de jogadores
-local function getPlayerList()
-    local playerNames = {}
-    for _, p in pairs(Players:GetPlayers()) do
-        if p ~= player then
-            table.insert(playerNames, p.Name)
-        end
-    end
-    return playerNames
+-- Detectar plataforma
+local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+local isPC = UserInputService.KeyboardEnabled and UserInputService.MouseEnabled
+local platformType = isMobile and "Mobile" or (isPC and "PC" or "Unknown")
+
+print("Plataforma detectada:", platformType)
+
+-- Carregar Library
+print("Carregando Redz Library...")
+local success, redzlib = pcall(function()
+    return loadstring(game:HttpGet("https://raw.githubusercontent.com/tbao143/Library-ui/refs/heads/main/Redzhubui"))()
+end)
+
+if not success then
+    warn("Erro ao carregar library:", redzlib)
+    return
 end
 
--- Função para obter lista de veículos
-local function getVehicleList()
-    local vehicles = {}
-    for _, v in pairs(workspace:GetDescendants()) do
-        if v:IsA("VehicleSeat") and v.Parent then
-            local vehicleName = v.Parent.Name
-            if not table.find(vehicles, vehicleName) then
-                table.insert(vehicles, vehicleName)
-            end
-        end
-    end
-    return vehicles
-end
+print("Library carregada! Criando UI...")
 
--- Lista de veículos do Brookhaven (Free e Pro)
-local brookhavenVehicles = {
-    -- Free Vehicles
-    "Bloxy", "Pickup", "SUV", "Ambulance", "Firetruck", "Police Car",
-    "School Bus", "Ice Cream Truck", "Taxi", "Delivery Van",
-    -- Pro Vehicles
-    "Tesla", "Cybertruck", "Lambo", "Ferrari", "Bugatti", "McLaren",
-    "Helicopter", "Private Jet", "Yacht", "Monster Truck", "Sports Car"
-}
-
--- Carregar Redz Library
-local redzlib = loadstring(game:HttpGet("https://raw.githubusercontent.com/tbao143/Library-ui/refs/heads/main/Redzhubui"))()
-
--- Criar notificação de boas-vindas personalizada
-local welcomeMessage = string.format(
-    "Bem-vindo ao Dragon Hub!
-Plataforma: %s
-%s %s %s",
-    CurrentPlatform.Type,
-    CurrentPlatform.HasKeyboard and "⌨️" or "",
-    CurrentPlatform.HasMouse and "🖱️" or "",
-    CurrentPlatform.HasTouch and "📱" or ""
-)
-
--- Criar Window com tamanho adaptativo
+-- Criar Window
 local Window = redzlib:MakeWindow({
-    Title = "🐉 Dragon Hub 0.2",
-    SubTitle = "Plataforma: " .. CurrentPlatform.Type
+    Title = "Dragon Hub 0.2",
+    SubTitle = "Plataforma: " .. platformType
 })
 
--- Criar GUI de informações da plataforma (canto superior direito)
-local infoGui = Instance.new("ScreenGui")
-infoGui.Name = "PlatformInfo"
-infoGui.ResetOnSpawn = false
-infoGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-infoGui.Parent = player:WaitForChild("PlayerGui")
-
-local infoFrame = Instance.new("Frame")
-infoFrame.Size = UDim2.new(0, 200, 0, 80)
-infoFrame.Position = UDim2.new(1, -210, 0, 10)
-infoFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
-infoFrame.BorderSizePixel = 0
-infoFrame.Parent = infoGui
-
-local infoCorner = Instance.new("UICorner")
-infoCorner.CornerRadius = UDim.new(0, 10)
-infoCorner.Parent = infoFrame
-
-local infoTitle = Instance.new("TextLabel")
-infoTitle.Size = UDim2.new(1, 0, 0, 25)
-infoTitle.BackgroundColor3 = Color3.fromRGB(50, 120, 200)
-infoTitle.BorderSizePixel = 0
-infoTitle.Text = "🎮 Plataforma"
-infoTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-infoTitle.Font = Enum.Font.GothamBold
-infoTitle.TextSize = 14
-infoTitle.Parent = infoFrame
-
-local infoTitleCorner = Instance.new("UICorner")
-infoTitleCorner.CornerRadius = UDim.new(0, 10)
-infoTitleCorner.Parent = infoTitle
-
-local infoText = Instance.new("TextLabel")
-infoText.Size = UDim2.new(1, -10, 1, -30)
-infoText.Position = UDim2.new(0, 5, 0, 28)
-infoText.BackgroundTransparency = 1
-infoText.TextColor3 = Color3.fromRGB(200, 200, 200)
-infoText.Font = Enum.Font.Gotham
-infoText.TextSize = 13
-infoText.TextWrapped = true
-infoText.TextYAlignment = Enum.TextYAlignment.Top
-infoText.Parent = infoFrame
-
--- Função auxiliar para criar controles adaptados
-local function CreateAdaptiveControl(controlType, parent, config)
-    if CurrentPlatform.IsConsole then
-        -- Adicionar hints de controle para console
-        local hintLabel = Instance.new("TextLabel")
-        hintLabel.Size = UDim2.new(0, 30, 0, 20)
-        hintLabel.BackgroundTransparency = 1
-        hintLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
-        hintLabel.Font = Enum.Font.GothamBold
-        hintLabel.TextSize = 12
-        hintLabel.Text = config.GamepadButton or ""
-        hintLabel.Parent = parent
-        return hintLabel
-    end
-    return nil
-end
-
--- ============================================
--- TAB 1: MOVIMENTO
--- ============================================
+-- TAB MOVIMENTO
 local Tab1 = Window:MakeTab({"Movimento", "rbxassetid://7733764088"})
 
--- Funções Fly (CORRIGIDO)
-local function startFly()
-    if flyEnabled then return end
-    flyEnabled = true
-    print("Fly ativado!")
+-- FLY
+Tab1:AddSection({"Sistema de Voo"})
 
-    -- Desabilitar gravidade
+local function startFly()
+    flyEnabled = true
+    
     local bodyForce = Instance.new("BodyForce")
     bodyForce.Name = "FlyForce"
     bodyForce.Force = Vector3.new(0, workspace.Gravity * rootPart:GetMass(), 0)
     bodyForce.Parent = rootPart
-
+    
     bodyGyro = Instance.new("BodyGyro")
     bodyGyro.MaxTorque = Vector3.new(100000, 100000, 100000)
     bodyGyro.P = 9000
     bodyGyro.Parent = rootPart
-
+    
     bodyVelocity = Instance.new("BodyVelocity")
     bodyVelocity.MaxForce = Vector3.new(100000, 100000, 100000)
     bodyVelocity.Velocity = Vector3.new(0, 0, 0)
     bodyVelocity.Parent = rootPart
-
+    
     flyConnection = RunService.Heartbeat:Connect(function()
         if not flyEnabled then return end
         local camera = workspace.CurrentCamera
         local move = Vector3.new(0, 0, 0)
-
+        
         if UserInputService:IsKeyDown(Enum.KeyCode.W) then move = move + camera.CFrame.LookVector end
         if UserInputService:IsKeyDown(Enum.KeyCode.S) then move = move - camera.CFrame.LookVector end
         if UserInputService:IsKeyDown(Enum.KeyCode.A) then move = move - camera.CFrame.RightVector end
         if UserInputService:IsKeyDown(Enum.KeyCode.D) then move = move + camera.CFrame.RightVector end
         if UserInputService:IsKeyDown(Enum.KeyCode.Space) then move = move + Vector3.new(0, 1, 0) end
         if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then move = move - Vector3.new(0, 1, 0) end
-
+        
         bodyVelocity.Velocity = move.Magnitude > 0 and move.Unit * flySpeed or Vector3.new(0, 0, 0)
         bodyGyro.CFrame = camera.CFrame
     end)
@@ -300,41 +93,12 @@ end
 
 local function stopFly()
     flyEnabled = false
-    print("Fly desativado!")
-    if flyConnection then flyConnection:Disconnect() flyConnection = nil end
-    if bodyVelocity then bodyVelocity:Destroy() bodyVelocity = nil end
-    if bodyGyro then bodyGyro:Destroy() bodyGyro = nil end
+    if flyConnection then flyConnection:Disconnect() end
+    if bodyVelocity then bodyVelocity:Destroy() end
+    if bodyGyro then bodyGyro:Destroy() end
     local bodyForce = rootPart:FindFirstChild("FlyForce")
     if bodyForce then bodyForce:Destroy() end
 end
-
--- Funções Noclip
-local function startNoclip()
-    noclipEnabled = true
-    print("Atravessar paredes ativado!")
-    noclipConnection = RunService.Stepped:Connect(function()
-        if not noclipEnabled then return end
-        for _, part in pairs(character:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.CanCollide = false
-            end
-        end
-    end)
-end
-
-local function stopNoclip()
-    noclipEnabled = false
-    print("Atravessar paredes desativado!")
-    if noclipConnection then noclipConnection:Disconnect() noclipConnection = nil end
-    for _, part in pairs(character:GetDescendants()) do
-        if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-            part.CanCollide = true
-        end
-    end
-end
-
--- Seção Fly
-Tab1:AddSection({"Fly System"})
 
 Tab1:AddToggle({
     Name = "Ativar Fly",
@@ -352,8 +116,8 @@ Tab1:AddSlider({
     Callback = function(v) flySpeed = v end
 })
 
--- Seção Speed
-Tab1:AddSection({"Speed System"})
+-- SPEED
+Tab1:AddSection({"Sistema de Velocidade"})
 
 Tab1:AddToggle({
     Name = "Ativar Speed",
@@ -375,8 +139,8 @@ Tab1:AddSlider({
     end
 })
 
--- Seção Jump
-Tab1:AddSection({"Jump System"})
+-- JUMP
+Tab1:AddSection({"Sistema de Pulo"})
 
 Tab1:AddToggle({
     Name = "Ativar Jump",
@@ -398,8 +162,30 @@ Tab1:AddSlider({
     end
 })
 
--- Seção Noclip
-Tab1:AddSection({"Sistema de Atravessar"})
+-- NOCLIP
+Tab1:AddSection({"Atravessar Paredes"})
+
+local function startNoclip()
+    noclipEnabled = true
+    noclipConnection = RunService.Stepped:Connect(function()
+        if not noclipEnabled then return end
+        for _, part in pairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
+    end)
+end
+
+local function stopNoclip()
+    noclipEnabled = false
+    if noclipConnection then noclipConnection:Disconnect() end
+    for _, part in pairs(character:GetDescendants()) do
+        if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+            part.CanCollide = true
+        end
+    end
+end
 
 Tab1:AddToggle({
     Name = "Atravessar Paredes",
@@ -409,565 +195,169 @@ Tab1:AddToggle({
     end
 })
 
--- Seção Cor do Céu (CORRIGIDA)
-Tab1:AddSection({"Cor do Céu"})
+-- TAB CONFIG
+local Tab2 = Window:MakeTab({"Config", "rbxassetid://7733955511"})
 
-Tab1:AddDropdown({
-    Name = "Escolher Cor",
-    Options = {"Normal", "Azul", "Vermelho", "Verde", "Roxo"},
-    Default = "Normal",
-    Callback = function(v)
-        selectedSkyColor = v
-        print("Cor selecionada:", v)
-    end
-})
+Tab2:AddSection({"Sobre"})
+Tab2:AddParagraph({"Dragon Hub 0.2", "Sistema completo para " .. platformType})
 
-Tab1:AddButton({"Aplicar Cor do Céu", function()
-    if selectedSkyColor == "Normal" then
-        -- Restaurar configurações originais
-        Lighting.Ambient = originalSkySettings.Ambient
-        Lighting.OutdoorAmbient = originalSkySettings.OutdoorAmbient
-        Lighting.FogColor = originalSkySettings.FogColor
-        Lighting.FogEnd = originalSkySettings.FogEnd
-        Lighting.FogStart = originalSkySettings.FogStart
-
-        -- Restaurar Sky se existir
-        if Lighting:FindFirstChildOfClass("Sky") then
-            local sky = Lighting:FindFirstChildOfClass("Sky")
-            sky.SkyboxBk = "rbxassetid://7018684000"
-            sky.SkyboxDn = "rbxassetid://7018684000"
-            sky.SkyboxFt = "rbxassetid://7018684000"
-            sky.SkyboxLf = "rbxassetid://7018684000"
-            sky.SkyboxRt = "rbxassetid://7018684000"
-            sky.SkyboxUp = "rbxassetid://7018684000"
-        end
-
-        print("Céu restaurado para o normal")
-    else
-        local colors = {
-            Azul = Color3.fromRGB(100, 150, 255),
-            Vermelho = Color3.fromRGB(255, 50, 50),
-            Verde = Color3.fromRGB(50, 255, 100),
-            Roxo = Color3.fromRGB(200, 50, 255)
-        }
-
-        -- Usar FireServer para fazer todos verem (se disponível)
-        pcall(function()
-            local ReplicatedStorage = game:GetService("ReplicatedStorage")
-            if ReplicatedStorage:FindFirstChild("ChangeSkyColor") then
-                ReplicatedStorage.ChangeSkyColor:FireServer(colors[selectedSkyColor])
-            end
-        end)
-
-        -- Modificar ou criar Sky
-        local sky = Lighting:FindFirstChildOfClass("Sky")
-        if not sky then
-            sky = Instance.new("Sky")
-            sky.Parent = Lighting
-        end
-
-        -- Criar texturas coloridas para o céu
-        sky.SkyboxBk = ""
-        sky.SkyboxDn = ""
-        sky.SkyboxFt = ""
-        sky.SkyboxLf = ""
-        sky.SkyboxRt = ""
-        sky.SkyboxUp = ""
-
-        -- Aplicar cor ao ambiente
-        local selectedColor = colors[selectedSkyColor]
-        Lighting.OutdoorAmbient = selectedColor
-        Lighting.Ambient = selectedColor
-        Lighting.FogColor = selectedColor
-        Lighting.FogEnd = 500
-        Lighting.FogStart = 0
-
-        -- Criar efeito de atmosfera colorida
-        local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
-        if not atmosphere then
-            atmosphere = Instance.new("Atmosphere")
-            atmosphere.Parent = Lighting
-        end
-        atmosphere.Color = selectedColor
-        atmosphere.Decay = selectedColor
-        atmosphere.Glare = 0
-        atmosphere.Haze = 2
-
-        print("Cor do céu alterada para:", selectedSkyColor)
-    end
+Tab2:AddButton({"Fechar Hub", function()
+    if flyEnabled then stopFly() end
+    if noclipEnabled then stopNoclip() end
+    Window:Destroy()
 end})
 
--- ============================================
--- TAB 2: TOOLS
--- ============================================
-local Tab2 = Window:MakeTab({"Tools", "rbxassetid://7733911816"})
+-- TAB TOOLS
+local Tab3 = Window:MakeTab({"Tools", "rbxassetid://7733911816"})
 
--- SEÇÃO: VEÍCULOS
-Tab2:AddSection({"Sistema de Veículos"})
+Tab3:AddSection({"Ferramentas"})
 
--- Dropdown para selecionar veículo
-Tab2:AddDropdown({
-    Name = "Selecionar Veículo",
-    Options = getVehicleList(),
-    Default = "",
-    Callback = function(v)
-        selectedVehicle = v
-        print("Veículo selecionado para modificar:", v)
-    end
-})
-
--- Slider para quantidade de veículos
-Tab2:AddSlider({
-    Text = "Quantidade de Veículos",
-    Min = 1,
-    Max = 10,
-    Default = 1,
-    Callback = function(v)
-        vehicleAmount = v
-        print("Quantidade definida:", v)
-    end
-})
-
--- Botão para spawnar veículos
-Tab2:AddButton({"Spawnar Veículos", function()
-    print("Spawnando", vehicleAmount, "x", selectedVehicle)
-
-    for i = 1, vehicleAmount do
-        -- Procurar pelo veículo no workspace
-        local vehicleModel = nil
-
-        for _, v in pairs(workspace:GetDescendants()) do
-            if v.Name == selectedVehicle and v:IsA("Model") then
-                vehicleModel = v
-                break
-            end
-        end
-
-        if vehicleModel then
-            -- Clonar e posicionar o veículo
-            local clonedVehicle = vehicleModel:Clone()
-            local offset = Vector3.new(i * 5, 0, 0)
-            clonedVehicle:SetPrimaryPartCFrame(rootPart.CFrame + offset)
-            clonedVehicle.Parent = workspace
-            print("Veículo spawnado:", i)
-        else
-            -- Criar veículo básico se não encontrar
-            local vehicle = Instance.new("Model")
-            vehicle.Name = selectedVehicle
-
-            local body = Instance.new("Part")
-            body.Size = Vector3.new(6, 2, 10)
-            body.Position = rootPart.Position + Vector3.new(i * 7, 2, 0)
-            body.Anchored = false
-            body.Parent = vehicle
-
-            local seat = Instance.new("VehicleSeat")
-            seat.Size = Vector3.new(2, 1, 2)
-            seat.Position = body.Position + Vector3.new(0, 1.5, 0)
-            seat.Parent = vehicle
-
-            vehicle.Parent = workspace
-            print("Veículo básico criado:", i)
-        end
-
-        task.wait(0.1)
-    end
-
-    print("Processo concluído!")
-end})
-
-Tab2:AddButton({"Atualizar Lista de Carros", function()
-    Tab2.Dropdowns.SelecionarVeiculo:Refresh(getVehicleList(), true)
-    print("Lista de carros atualizada!")
-end})
-
--- SEÇÃO: MODIFICAR VELOCIDADE DOS CARROS
-Tab2:AddSection({"Car Speed Modifier"})
-
--- Dropdown para selecionar carro no mapa
-local carSpeedDropdown = Tab2:AddDropdown({
-    Name = "Selecionar Carro",
-    Options = {},
-    Default = "",
-    Callback = function(v)
-        selectedCarForSpeed = v
-        print("Carro selecionado para modificar:", v)
-    end
-})
-
--- Slider de velocidade do carro
-Tab2:AddSlider({
-    Text = "Velocidade do Carro",
-    Min = 10,
-    Max = 500,
-    Default = 50,
-    Callback = function(v)
-        carSpeedValue = v
-    end
-})
-
--- Slider de turbo do carro
-Tab2:AddSlider({
-    Text = "Turbo do Carro",
-    Min = 50,
-    Max = 1000,
-    Default = 100,
-    Callback = function(v)
-        carTurboValue = v
-    end
-})
-
--- Botão para aplicar velocidade
-Tab2:AddButton({"Aplicar Velocidade", function()
-    if selectedCarForSpeed and selectedCarForSpeed ~= "" then
-        local modified = false
-
-        for _, v in pairs(workspace:GetDescendants()) do
-            if v:IsA("VehicleSeat") and v.Parent and v.Parent.Name == selectedCarForSpeed then
-                -- Modificar velocidade do VehicleSeat
-                v.MaxSpeed = carSpeedValue
-                v.TurnSpeed = carTurboValue / 10
-                v.Torque = carTurboValue
-
-                -- Modificar propriedades do motor se houver
-                if v:FindFirstChild("Motor") then
-                    v.Motor.MaxSpeed = carSpeedValue
-                end
-
-                modified = true
-                print("Velocidade aplicada:", carSpeedValue, "| Turbo:", carTurboValue)
-            end
-        end
-
-        if not modified then
-            print("Carro não encontrado ou sem VehicleSeat!")
-        end
-    else
-        print("Selecione um carro primeiro!")
-    end
-end})
-
-Tab2:AddButton({"Atualizar Lista de Carros", function()
-    carSpeedDropdown:Refresh(getVehicleList(), true)
-    print("Lista de carros atualizada!")
-end})
-
--- SEÇÃO: OUTRAS FERRAMENTAS
-Tab2:AddSection({"Outras Ferramentas"})
-
--- SEÇÃO: OUTRAS FERRAMENTAS
-Tab2:AddSection({"Outras Ferramentas"})
-
-Tab2:AddButton({"Pegar Todos os Itens", function()
+Tab3:AddButton({"Pegar Todos Itens", function()
+    local count = 0
     for _, v in pairs(workspace:GetDescendants()) do
         if v:IsA("Tool") then
             v.Parent = player.Backpack
+            count = count + 1
         end
     end
-    print("Todos os itens coletados!")
+    print("Coletados", count, "itens!")
 end})
 
-Tab2:AddButton({"Modo Construção Avançado", function()
-    -- Criar ferramenta de construção
-    local buildTool = Instance.new("Tool")
-    buildTool.Name = "🔨 Build Tool"
-    buildTool.RequiresHandle = false
-    buildTool.CanBeDropped = false
-
+Tab3:AddButton({"Build Tool Simples", function()
+    local tool = Instance.new("Tool")
+    tool.Name = "Build Tool"
+    tool.RequiresHandle = false
+    
     local handle = Instance.new("Part")
     handle.Name = "Handle"
-    handle.Size = Vector3.new(0.5, 0.5, 0.5)
-    handle.Transparency = 0.5
-    handle.BrickColor = BrickColor.new("Bright blue")
-    handle.Material = Enum.Material.Neon
-    handle.CanCollide = false
-    handle.Parent = buildTool
+    handle.Size = Vector3.new(1, 1, 1)
+    handle.Transparency = 1
+    handle.Parent = tool
+    
+    tool.Activated:Connect(function()
+        local part = Instance.new("Part")
+        part.Size = Vector3.new(4, 1, 4)
+        part.Anchored = true
+        part.BrickColor = BrickColor.Random()
+        part.Position = rootPart.Position + (rootPart.CFrame.LookVector * 5)
+        part.Parent = workspace
+        print("Bloco criado!")
+    end)
+    
+    tool.Parent = player.Backpack
+    print("Build Tool adicionada!")
+end})
 
-    -- Variáveis de controle
-    local blockSize = Vector3.new(4, 1, 4)
-    local blockColor = BrickColor.new("Bright red")
-    local blockMaterial = Enum.Material.Plastic
-    local isAnchored = true
-    local previewBlock = nil
-    local mouse = player:GetMouse()
+-- Espionar
+Tab3:AddSection({"Espionar Jogadores"})
 
-    -- Criar GUI de controles (adaptado por plataforma)
-    local controlGui = Instance.new("ScreenGui")
-    controlGui.Name = "BuildControls"
-    controlGui.ResetOnSpawn = false
-    controlGui.Enabled = false
-    controlGui.Parent = player:WaitForChild("PlayerGui")
-
-    -- Frame de controles (tamanho baseado na plataforma)
-    local frameWidth = CurrentPlatform.IsMobile and 180 or (CurrentPlatform.IsConsole and 250 or 200)
-    local frameHeight = CurrentPlatform.IsConsole and 320 or 280
-
-    local controlFrame = Instance.new("Frame")
-    controlFrame.Size = UDim2.new(0, frameWidth, 0, frameHeight)
-    controlFrame.Position = UDim2.new(1, -(frameWidth + 10), 0.5, -(frameHeight / 2))
-    controlFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
-    controlFrame.BorderSizePixel = 0
-    controlFrame.Parent = controlGui
-
-    local frameCorner = Instance.new("UICorner")
-    frameCorner.CornerRadius = UDim.new(0, 10)
-    frameCorner.Parent = controlFrame
-
-    -- Título
-    local titleLabel = Instance.new("TextLabel")
-    titleLabel.Size = UDim2.new(1, 0, 0, 35)
-    titleLabel.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
-    titleLabel.BorderSizePixel = 0
-    titleLabel.Text = "🔨 Build Controls"
-    titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    titleLabel.Font = Enum.Font.GothamBold
-    titleLabel.TextSize = ActiveConfig.TextSize + 2
-    titleLabel.Parent = controlFrame
-
-    local titleCorner = Instance.new("UICorner")
-    titleCorner.CornerRadius = UDim.new(0, 10)
-    titleCorner.Parent = titleLabel
-
-    -- Subtítulo com plataforma
-    local platformHint = Instance.new("TextLabel")
-    platformHint.Size = UDim2.new(1, 0, 0, 20)
-    platformHint.Position = UDim2.new(0, 0, 0, 35)
-    platformHint.BackgroundTransparency = 1
-    platformHint.TextColor3 = Color3.fromRGB(150, 150, 150)
-    platformHint.Font = Enum.Font.Gotham
-    platformHint.TextSize = 11
-    platformHint.Parent = controlFrame
-
-    if CurrentPlatform.IsPC then
-        platformHint.Text = "Q/E/R/T para alterar"
-    elseif CurrentPlatform.IsConsole then
-        platformHint.Text = "Use os botões do controle"
-    else
-        platformHint.Text = "Toque nos botões abaixo"
-    end
-
-    local btnHeight = CurrentPlatform.IsConsole and 45 or (CurrentPlatform.IsMobile and 40 or 35)
-    local btnSpacing = CurrentPlatform.IsConsole and 10 : 5
-    local startY = 60
-
-    -- Botão Mudar Cor
-    local colorBtn = Instance.new("TextButton")
-    colorBtn.Size = UDim2.new(1, -20, 0, btnHeight)
-    colorBtn.Position = UDim2.new(0, 10, 0, startY)
-    colorBtn.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
-    colorBtn.BorderSizePixel = 0
-    colorBtn.Text = CurrentPlatform.IsPC and "🎨 Cor (Q)" or (CurrentPlatform.IsConsole and "🎨 Cor (X)" or "🎨 Cor")
-    colorBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    colorBtn.Font = Enum.Font.GothamBold
-    colorBtn.TextSize = ActiveConfig.TextSize
-    colorBtn.Parent = controlFrame
-
-    local colorCorner = Instance.new("UICorner")
-    colorCorner.CornerRadius = UDim.new(0, 8)
-    colorCorner.Parent = colorBtn
-
-    -- Botão Mudar Tamanho
-    local sizeBtn = Instance.new("TextButton")
-    sizeBtn.Size = UDim2.new(1, -20, 0, btnHeight)
-    sizeBtn.Position = UDim2.new(0, 10, 0, startY + btnHeight + btnSpacing)
-    sizeBtn.BackgroundColor3 = Color3.fromRGB(100, 150, 255)
-    sizeBtn.BorderSizePixel = 0
-    sizeBtn.Text = CurrentPlatform.IsPC and "📏 Tamanho (E)" or (CurrentPlatform.IsConsole and "📏 Tamanho (Y)" or "📏 Tamanho")
-    sizeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    sizeBtn.Font = Enum.Font.GothamBold
-    sizeBtn.TextSize = ActiveConfig.TextSize
-    sizeBtn.Parent = controlFrame
-
-    local sizeCorner = Instance.new("UICorner")
-    sizeCorner.CornerRadius = UDim.new(0, 8)
-    sizeCorner.Parent = sizeBtn
-
-    -- Botão Mudar Material
-    local materialBtn = Instance.new("TextButton")
-    materialBtn.Size = UDim2.new(1, -20, 0, btnHeight)
-    materialBtn.Position = UDim2.new(0, 10, 0, startY + (btnHeight + btnSpacing) * 2)
-    materialBtn.BackgroundColor3 = Color3.fromRGB(150, 100, 255)
-    materialBtn.BorderSizePixel = 0
-    materialBtn.Text = CurrentPlatform.IsPC and "✨ Material (R)" or (CurrentPlatform.IsConsole and "✨ Material (A)" or "✨ Material")
-    materialBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    materialBtn.Font = Enum.Font.GothamBold
-    materialBtn.TextSize = ActiveConfig.TextSize
-    materialBtn.Parent = controlFrame
-
-    local materialCorner = Instance.new("UICorner")
-    materialCorner.CornerRadius = UDim.new(0, 8)
-    materialCorner.Parent = materialBtn
-
-    -- Botão Toggle Anchor
-    local anchorBtn = Instance.new("TextButton")
-    anchorBtn.Size = UDim2.new(1, -20, 0, btnHeight)
-    anchorBtn.Position = UDim2.new(0, 10, 0, startY + (btnHeight + btnSpacing) * 3)
-    anchorBtn.BackgroundColor3 = Color3.fromRGB(100, 255, 150)
-    anchorBtn.BorderSizePixel = 0
-    anchorBtn.Text = CurrentPlatform.IsPC and "🔒 Anchor (T)" or (CurrentPlatform.IsConsole and "🔒 Anchor (B)" or "🔒 Anchor: ON")
-    anchorBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
-    anchorBtn.Font = Enum.Font.GothamBold
-    anchorBtn.TextSize = ActiveConfig.TextSize
-    anchorBtn.Parent = controlFrame
-
-    local anchorCorner = Instance.new("UICorner")
-    anchorCorner.CornerRadius = UDim.new(0, 8)
-    anchorCorner.Parent = anchorBtn
-
-    -- Botão Deletar
-    local deleteBtn = Instance.new("TextButton")
-    deleteBtn.Size = UDim2.new(1, -20, 0, btnHeight)
-    deleteBtn.Position = UDim2.new(0, 10, 0, startY + (btnHeight + btnSpacing) * 4)
-    deleteBtn.BackgroundColor3 = Color3.fromRGB(255, 70, 70)
-    deleteBtn.BorderSizePixel = 0
-    deleteBtn.Text = CurrentPlatform.IsConsole and "🗑️ Deletar (RB)" or "🗑️ Modo Deletar"
-    deleteBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    deleteBtn.Font = Enum.Font.GothamBold
-    deleteBtn.TextSize = ActiveConfig.TextSize
-    deleteBtn.Parent = controlFrame
-
-    local deleteCorner = Instance.new("UICorner")
-    deleteCorner.CornerRadius = UDim.new(0, 8)
-    deleteCorner.Parent = deleteBtn
-
-    local deleteMode = false
-
-    -- Criar preview do bloco
-    local function createPreview()
-        if previewBlock then previewBlock:Destroy() end
-
-        previewBlock = Instance.new("Part")
-        previewBlock.Size = blockSize
-        previewBlock.Transparency = 0.5
-        previewBlock.CanCollide = false
-        previewBlock.Anchored = true
-        previewBlock.BrickColor = blockColor
-        previewBlock.Material = blockMaterial
-        previewBlock.Parent = workspace
-
-        local highlight = Instance.new("SelectionBox")
-        highlight.LineThickness = 0.1
-        highlight.Color3 = Color3.new(0, 1, 0)
-        highlight.Adornee = previewBlock
-        highlight.Parent = previewBlock
-    end
-
-    -- Atualizar posição do preview
-    local function updatePreview()
-        if previewBlock then
-            local targetPos
-
-            if CurrentPlatform.IsMobile or CurrentPlatform.IsConsole then
-                -- Mobile/Console: posição na frente do jogador
-                local distance = CurrentPlatform.IsConsole and 15 or 10
-                targetPos = rootPart.Position + (rootPart.CFrame.LookVector * distance)
-            else
-                -- PC: usar mouse
-                if mouse.Target then
-                    targetPos = mouse.Hit.Position
-                else
-                    targetPos = rootPart.Position + (rootPart.CFrame.LookVector * 10)
-                end
-            end
-
-            local gridSize = 1
-            local snappedPos = Vector3.new(
-                math.floor(targetPos.X / gridSize + 0.5) * gridSize,
-                math.floor(targetPos.Y / gridSize + 0.5) * gridSize,
-                math.floor(targetPos.Z / gridSize + 0.5) * gridSize
-            )
-            previewBlock.Position = snappedPos + Vector3.new(0, blockSize.Y / 2, 0)
+local function getPlayers()
+    local list = {}
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= player then
+            table.insert(list, p.Name)
         end
     end
+    return list
+end
 
-    -- Spawnar bloco
-    local function spawnBlock()
-        if not previewBlock then return end
+local selectedSpy = nil
 
-        local newBlock = Instance.new("Part")
-        newBlock.Size = blockSize
-        newBlock.Position = previewBlock.Position
-        newBlock.BrickColor = blockColor
-        newBlock.Material = blockMaterial
-        newBlock.Anchored = isAnchored
-        newBlock.Parent = workspace
-        newBlock.CustomPhysicalProperties = PhysicalProperties.new(0.7, 0.3, 0.5)
-
-        print("✅ Bloco criado:", newBlock.Position)
+local spyDrop = Tab3:AddDropdown({
+    Name = "Selecionar Jogador",
+    Options = getPlayers(),
+    Default = "",
+    Callback = function(v)
+        selectedSpy = v
     end
+})
 
-    -- Deletar bloco
-    local function deleteBlock()
-        local targetPart = nil
-
-        if CurrentPlatform.IsMobile or CurrentPlatform.IsConsole then
-            -- Mobile/Console: raycast na frente do jogador
-            local ray = Ray.new(rootPart.Position, rootPart.CFrame.LookVector * 50)
-            local hit, position = workspace:FindPartOnRay(ray, character)
-            targetPart = hit
-        else
-            -- PC: usar mouse
-            targetPart = mouse.Target
+Tab3:AddButton({"Espiar Jogador", function()
+    if selectedSpy then
+        local target = Players:FindFirstChild(selectedSpy)
+        if target and target.Character and target.Character:FindFirstChild("Humanoid") then
+            workspace.CurrentCamera.CameraSubject = target.Character.Humanoid
+            print("Espiando:", selectedSpy)
         end
+    end
+end})
 
-        if targetPart and targetPart.Parent == workspace then
-            if targetPart:IsA("Part") and targetPart.Name ~= "Baseplate" and targetPart.Name ~= "Terrain" then
-                targetPart:Destroy()
-                print("🗑️ Bloco deletado!")
+Tab3:AddButton({"Parar Espiar", function()
+    workspace.CurrentCamera.CameraSubject = humanoid
+    print("Visão restaurada")
+end})
+
+Tab3:AddButton({"Atualizar Lista", function()
+    spyDrop:Refresh(getPlayers(), true)
+end})
+
+-- TAB ADMIN
+local Tab4 = Window:MakeTab({"Admin", "rbxassetid://7733955511"})
+
+Tab4:AddSection({"Poderes Admin"})
+
+Tab4:AddButton({"Desbanir Casas", function()
+    for _, v in pairs(workspace:GetDescendants()) do
+        if v:IsA("Script") or v:IsA("LocalScript") then
+            local name = v.Name:lower()
+            if name:find("ban") or name:find("kick") then
+                v.Disabled = true
+                v:Destroy()
             end
         end
     end
+    print("Anti-ban aplicado!")
+end})
 
-    -- Funções de mudança
-    local function changeColor()
-        local colors = {
-            BrickColor.new("Bright red"),
-            BrickColor.new("Bright blue"),
-            BrickColor.new("Bright green"),
-            BrickColor.new("Bright yellow"),
-            BrickColor.new("Bright orange"),
-            BrickColor.new("Bright violet"),
-            BrickColor.new("Dark stone grey"),
-            BrickColor.new("White"),
-            BrickColor.new("Black")
-        }
-        blockColor = colors[math.random(1, #colors)]
-        if previewBlock then previewBlock.BrickColor = blockColor end
-        colorBtn.BackgroundColor3 = blockColor.Color
-        print("Cor alterada para:", blockColor.Name)
+-- Teleporte
+Tab4:AddSection({"Teleporte"})
+
+local selectedTP = nil
+
+local tpDrop = Tab4:AddDropdown({
+    Name = "Selecionar Jogador",
+    Options = getPlayers(),
+    Default = "",
+    Callback = function(v)
+        selectedTP = v
     end
+})
 
-    local function changeSize()
-        local sizes = {
-            Vector3.new(2, 0.5, 2),
-            Vector3.new(4, 1, 4),
-            Vector3.new(6, 1, 6),
-            Vector3.new(8, 2, 8),
-            Vector3.new(1, 10, 1),
-            Vector3.new(10, 0.5, 10)
-        }
-        blockSize = sizes[math.random(1, #sizes)]
-        createPreview()
-        print("Tamanho alterado para:", blockSize)
+Tab4:AddButton({"Teleportar", function()
+    if selectedTP then
+        local target = Players:FindFirstChild(selectedTP)
+        if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+            rootPart.CFrame = target.Character.HumanoidRootPart.CFrame + Vector3.new(0, 3, 0)
+            print("Teleportado para:", selectedTP)
+        end
     end
+end})
 
-    local function changeMaterial()
-        local materials = {
-            Enum.Material.Plastic,
-            Enum.Material.Wood,
-            Enum.Material.Slate,
-            Enum.Material.Concrete,
-            Enum.Material.Metal,
-            Enum.Material.Glass,
-            Enum.Material.Neon,
-            Enum.Material.Ice,
-            Enum.Material.Marble
-        }
-        blockMaterial = materials[math.random(1, #materials)]
-        if previewBlock then previewBlock.Material = blockMaterial end
-        print("Material alterado para:", blockMaterial.Name)
-    end
+Tab4:AddButton({"Atualizar Lista", function()
+    tpDrop:Refresh(getPlayers(), true)
+end})
 
-    local function toggleAnchor()
-        isAnchored = not
-\<Streaming stoppped because the conversation grew too long for this model\>
+-- Atualizar listas automaticamente
+Players.PlayerAdded:Connect(function()
+    task.wait(1)
+    if spyDrop then spyDrop:Refresh(getPlayers(), true) end
+    if tpDrop then tpDrop:Refresh(getPlayers(), true) end
+end)
+
+Players.PlayerRemoving:Connect(function()
+    task.wait(1)
+    if spyDrop then spyDrop:Refresh(getPlayers(), true) end
+    if tpDrop then tpDrop:Refresh(getPlayers(), true) end
+end)
+
+-- Respawn
+player.CharacterAdded:Connect(function(char)
+    character = char
+    humanoid = char:WaitForChild("Humanoid")
+    rootPart = char:WaitForChild("HumanoidRootPart")
+    if flyEnabled then stopFly() end
+    if noclipEnabled then stopNoclip() end
+end)
+
+print("Dragon Hub 0.2 carregado com sucesso!")
+]])()
