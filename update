@@ -1,4 +1,4 @@
--- Dragon Hub 0.2 - Redz Library
+-- Dragon Hub 0.2 - Redz Library (Brookhaven RP Otimizado)
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -12,63 +12,261 @@ local rootPart = character:WaitForChild("HumanoidRootPart")
 local flyEnabled = false
 local speedEnabled = false
 local jumpEnabled = false
+local clickTPEnabled = false
 local speedValue = 16
 local jumpValue = 50
 local flySpeed = 50
 
 local bodyVelocity, bodyGyro, flyConnection
+local clickTPTool = nil
+local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
 local redzlib = loadstring(game:HttpGet("https://raw.githubusercontent.com/tbao143/Library-ui/refs/heads/main/Redzhubui"))()
 
 local Window = redzlib:MakeWindow({
     Title = "Dragon Hub 0.2",
-    SubTitle = "Sistema de Movimento"
+    SubTitle = "Brookhaven RP Edition"
 })
 
 local Tab1 = Window:MakeTab({"Movimento", "rbxassetid://7733764088"})
 
+-- Função para verificar se o personagem está válido
+local function isCharacterValid()
+    if not character or not character.Parent then
+        return false
+    end
+    if not rootPart or not rootPart.Parent then
+        return false
+    end
+    if not humanoid or not humanoid.Parent or humanoid.Health <= 0 then
+        return false
+    end
+    return true
+end
+
+-- Função para atualizar referências do personagem
+local function updateCharacterReferences()
+    character = player.Character
+    if character then
+        humanoid = character:FindFirstChild("Humanoid")
+        rootPart = character:FindFirstChild("HumanoidRootPart")
+    end
+end
+
+-- Sistema de Fly otimizado para Brookhaven
 local function startFly()
+    if flyEnabled then return end
+    
+    updateCharacterReferences()
+    
+    if not isCharacterValid() then
+        warn("[Dragon Hub] Personagem inválido. Aguarde o respawn.")
+        return
+    end
+    
     flyEnabled = true
+    
+    -- Remove qualquer BodyGyro/BodyVelocity anterior para evitar conflitos
+    for _, obj in pairs(rootPart:GetChildren()) do
+        if obj:IsA("BodyGyro") or obj:IsA("BodyVelocity") or obj:IsA("BodyPosition") then
+            obj:Destroy()
+        end
+    end
+    
+    -- Desativa a física padrão do Brookhaven temporariamente
+    if humanoid then
+        humanoid.PlatformStand = true
+    end
+    
+    -- Cria BodyGyro para controle de rotação
     bodyGyro = Instance.new("BodyGyro")
+    bodyGyro.Name = "FlyGyro"
     bodyGyro.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
     bodyGyro.P = 9000
+    bodyGyro.D = 500
     bodyGyro.Parent = rootPart
     
+    -- Cria BodyVelocity para movimento
     bodyVelocity = Instance.new("BodyVelocity")
+    bodyVelocity.Name = "FlyVelocity"
     bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-    bodyVelocity.Velocity = Vector3.new(0, 0.1, 0)
+    bodyVelocity.Velocity = Vector3.new(0, 0, 0)
     bodyVelocity.Parent = rootPart
     
+    -- Loop principal do fly
     flyConnection = RunService.Heartbeat:Connect(function()
+        -- Verificações de segurança
+        if not flyEnabled then
+            stopFly()
+            return
+        end
+        
+        if not isCharacterValid() then
+            stopFly()
+            return
+        end
+        
+        if not bodyVelocity or not bodyVelocity.Parent or not bodyGyro or not bodyGyro.Parent then
+            stopFly()
+            warn("[Dragon Hub] Componentes do fly foram destruídos. Reativando...")
+            task.wait(0.1)
+            if flyEnabled then
+                startFly()
+            end
+            return
+        end
+        
+        -- Mantém o personagem no modo fly
+        if humanoid and humanoid.PlatformStand == false then
+            humanoid.PlatformStand = true
+        end
+        
         local camera = workspace.CurrentCamera
+        if not camera then return end
+        
         local move = Vector3.new(0, 0, 0)
         
-        if UserInputService:IsKeyDown(Enum.KeyCode.W) then move = move + camera.CFrame.LookVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.S) then move = move - camera.CFrame.LookVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.A) then move = move - camera.CFrame.RightVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.D) then move = move + camera.CFrame.RightVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then move = move + Vector3.new(0, 1, 0) end
-        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then move = move - Vector3.new(0, 1, 0) end
+        -- Suporte para Mobile (joystick virtual)
+        if isMobile and humanoid.MoveDirection.Magnitude > 0 then
+            local moveDir = humanoid.MoveDirection
+            move = (camera.CFrame.RightVector * moveDir.X) + (camera.CFrame.LookVector * -moveDir.Z)
+        end
         
-        bodyVelocity.Velocity = move.Magnitude > 0 and move.Unit * flySpeed or Vector3.new(0, 0.1, 0)
+        -- Controles PC (WASD)
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+            move = move + camera.CFrame.LookVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+            move = move - camera.CFrame.LookVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+            move = move - camera.CFrame.RightVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+            move = move + camera.CFrame.RightVector
+        end
+        
+        -- Subir/Descer (Space/Shift ou botões mobile)
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+            move = move + Vector3.new(0, 1, 0)
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.RightShift) then
+            move = move - Vector3.new(0, 1, 0)
+        end
+        
+        -- Aplica a velocidade de movimento
+        if move.Magnitude > 0 then
+            bodyVelocity.Velocity = move.Unit * flySpeed
+        else
+            -- Mantém uma pequena velocidade para evitar queda
+            bodyVelocity.Velocity = Vector3.new(0, 0.1, 0)
+        end
+        
+        -- Sincroniza rotação com a câmera
         bodyGyro.CFrame = camera.CFrame
+        
+        -- Previne colisões que podem causar bugs no Brookhaven
+        rootPart.Velocity = bodyVelocity.Velocity
     end)
+    
+    print("[Dragon Hub] Fly ativado com sucesso!")
 end
 
 local function stopFly()
     flyEnabled = false
-    if flyConnection then flyConnection:Disconnect() end
-    if bodyVelocity then bodyVelocity:Destroy() end
-    if bodyGyro then bodyGyro:Destroy() end
+    
+    if flyConnection then
+        flyConnection:Disconnect()
+        flyConnection = nil
+    end
+    
+    if bodyVelocity then
+        bodyVelocity:Destroy()
+        bodyVelocity = nil
+    end
+    
+    if bodyGyro then
+        bodyGyro:Destroy()
+        bodyGyro = nil
+    end
+    
+    -- Restaura a física normal
+    if humanoid and humanoid.Parent then
+        humanoid.PlatformStand = false
+    end
+    
+    -- Zera a velocidade para evitar movimento residual
+    if rootPart and rootPart.Parent then
+        rootPart.Velocity = Vector3.new(0, 0, 0)
+        rootPart.RotVelocity = Vector3.new(0, 0, 0)
+    end
+    
+    print("[Dragon Hub] Fly desativado.")
 end
 
+-- Sistema de Click TP otimizado para Brookhaven
+local function createClickTPTool()
+    if clickTPTool then
+        clickTPTool:Destroy()
+    end
+    
+    clickTPTool = Instance.new("Tool")
+    clickTPTool.Name = "Click TP"
+    clickTPTool.RequiresHandle = false
+    clickTPTool.CanBeDropped = false
+    
+    clickTPTool.Activated:Connect(function()
+        if not isCharacterValid() then return end
+        
+        local mouse = player:GetMouse()
+        if mouse and mouse.Hit then
+            local targetPos = mouse.Hit.Position
+            
+            -- Teleporte seguro com verificação de colisão
+            local safePos = targetPos + Vector3.new(0, 3, 0)
+            
+            -- Usa CFrame para evitar detecção de anti-cheat
+            rootPart.CFrame = CFrame.new(safePos)
+            
+            -- Força atualização de rede
+            task.wait()
+            rootPart.Velocity = Vector3.new(0, 0, 0)
+        end
+    end)
+    
+    clickTPTool.Parent = player.Backpack
+    
+    -- Auto-equipa apenas se não estiver em um veículo
+    if humanoid and not humanoid.Sit then
+        task.wait(0.1)
+        if clickTPTool and clickTPTool.Parent == player.Backpack then
+            humanoid:EquipTool(clickTPTool)
+        end
+    end
+    
+    print("[Dragon Hub] Click TP criado!")
+end
+
+local function removeClickTPTool()
+    if clickTPTool then
+        clickTPTool:Destroy()
+        clickTPTool = nil
+        print("[Dragon Hub] Click TP removido.")
+    end
+end
+
+-- Interface UI
 Tab1:AddSection({"Fly System"})
 
 Tab1:AddToggle({
     Name = "Ativar Fly",
     Default = false,
     Callback = function(v)
-        if v then startFly() else stopFly() end
+        if v then
+            startFly()
+        else
+            stopFly()
+        end
     end
 })
 
@@ -77,7 +275,14 @@ Tab1:AddSlider({
     Min = 10,
     Max = 200,
     Default = 50,
-    Callback = function(v) flySpeed = v end
+    Callback = function(v)
+        flySpeed = v
+    end
+})
+
+Tab1:AddParagraph({
+    "Controles do Fly",
+    isMobile and "Mobile: Use o joystick para se mover. Botão de pular para subir." or "PC: W/A/S/D para mover, Space para subir, Shift para descer."
 })
 
 Tab1:AddSection({"Speed System"})
@@ -87,18 +292,22 @@ Tab1:AddToggle({
     Default = false,
     Callback = function(v)
         speedEnabled = v
-        humanoid.WalkSpeed = v and speedValue or 16
+        if humanoid then
+            humanoid.WalkSpeed = v and speedValue or 16
+        end
     end
 })
 
 Tab1:AddSlider({
     Text = "Velocidade",
-    Min = 0,
+    Min = 16,
     Max = 100,
     Default = 16,
     Callback = function(v)
         speedValue = v
-        if speedEnabled then humanoid.WalkSpeed = v end
+        if speedEnabled and humanoid then
+            humanoid.WalkSpeed = v
+        end
     end
 })
 
@@ -109,34 +318,132 @@ Tab1:AddToggle({
     Default = false,
     Callback = function(v)
         jumpEnabled = v
-        humanoid.JumpPower = v and jumpValue or 50
+        if humanoid then
+            humanoid.JumpPower = v and jumpValue or 50
+        end
     end
 })
 
 Tab1:AddSlider({
     Text = "Força do Pulo",
-    Min = 0,
+    Min = 50,
     Max = 200,
     Default = 50,
     Callback = function(v)
         jumpValue = v
-        if jumpEnabled then humanoid.JumpPower = v end
+        if jumpEnabled and humanoid then
+            humanoid.JumpPower = v
+        end
     end
+})
+
+Tab1:AddSection({"Click TP System"})
+
+Tab1:AddToggle({
+    Name = "Ativar Click TP",
+    Default = false,
+    Callback = function(v)
+        clickTPEnabled = v
+        if v then
+            createClickTPTool()
+        else
+            removeClickTPTool()
+        end
+    end
+})
+
+Tab1:AddParagraph({
+    "Como usar Click TP",
+    "Equipe a ferramenta 'Click TP' e clique/toque onde deseja se teleportar. Funciona em qualquer superfície do mapa."
 })
 
 local Tab2 = Window:MakeTab({"Config", "rbxassetid://7733955511"})
 
-Tab2:AddSection({"Sobre"})
-Tab2:AddParagraph({"Dragon Hub 0.2", "Sistema completo de movimento"})
+Tab2:AddSection({"Informações"})
+Tab2:AddParagraph({
+    "Dragon Hub 0.2",
+    "Otimizado para Brookhaven RP
+Recursos:
+• Fly sem bugs
+• Speed customizável
+• Jump ajustável
+• Click TP instantâneo"
+})
 
-Tab2:AddButton({"Fechar", function()
-    if flyEnabled then stopFly() end
-    Window:Destroy()
-end})
+Tab2:AddSection({"Controles"})
+Tab2:AddParagraph({
+    "Dispositivo Detectado",
+    isMobile and "Mobile - Interface touch otimizada" or "PC - Controles de teclado e mouse"
+})
 
+Tab2:AddButton({
+    "Resetar Personagem",
+    function()
+        if player.Character then
+            player.Character:BreakJoints()
+        end
+    end
+})
+
+Tab2:AddButton({
+    "Fechar Hub",
+    function()
+        if flyEnabled then stopFly() end
+        if clickTPEnabled then removeClickTPTool() end
+        Window:Destroy()
+    end
+})
+
+-- Sistema automático de reset e manutenção
 player.CharacterAdded:Connect(function(char)
-    character = char
-    humanoid = char:WaitForChild("Humanoid")
-    rootPart = char:WaitForChild("HumanoidRootPart")
-    if flyEnabled then stopFly() end
+    task.wait(1)
+    
+    updateCharacterReferences()
+    
+    -- Reseta todos os estados
+    if flyEnabled then
+        stopFly()
+        flyEnabled = false
+    end
+    
+    speedEnabled = false
+    jumpEnabled = false
+    
+    -- Recria Click TP se estava ativo
+    if clickTPEnabled then
+        task.wait(0.5)
+        createClickTPTool()
+    end
+    
+    print("[Dragon Hub] Personagem resetado. Reative as funções desejadas.")
 end)
+
+-- Loop de manutenção para garantir que os valores permaneçam
+RunService.Heartbeat:Connect(function()
+    if not isCharacterValid() then return end
+    
+    -- Mantém Speed ativo
+    if speedEnabled and humanoid then
+        if humanoid.WalkSpeed ~= speedValue then
+            humanoid.WalkSpeed = speedValue
+        end
+    end
+    
+    -- Mantém Jump ativo
+    if jumpEnabled and humanoid then
+        if humanoid.JumpPower ~= jumpValue then
+            humanoid.JumpPower = jumpValue
+        end
+    end
+end)
+
+-- Detecção de morte para desativar fly automaticamente
+if humanoid then
+    humanoid.Died:Connect(function()
+        if flyEnabled then
+            stopFly()
+        end
+    end)
+end
+
+print("[Dragon Hub 0.2] Carregado com sucesso para Brookhaven RP!")
