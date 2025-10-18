@@ -1,247 +1,376 @@
+-- LocalScript: Sistema completo com Click TP integrado
+
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
-
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local player = Players.LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
-local humanoid = character:WaitForChild("Humanoid")
-local rootPart = character:WaitForChild("HumanoidRootPart")
 
-local flyEnabled = false
-local speedEnabled = false
-local jumpEnabled = false
-local clickTPEnabled = false  -- Novo: Controla o Click TP
-local speedValue = 16
-local jumpValue = 50
+-- ===========================
+-- DETECÇÃO AUTOMÁTICA DE DISPOSITIVO
+-- ===========================
+
+local function detectDevice()
+    if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled and not UserInputService.MouseEnabled then
+        return "Mobile"
+    elseif UserInputService.KeyboardEnabled and UserInputService.MouseEnabled then
+        return "PC"
+    elseif UserInputService.GamepadEnabled then
+        return "Console"
+    else
+        return "Desconhecido"
+    end
+end
+
+local deviceType = detectDevice()
+print("🖥️ Dispositivo detectado: " .. deviceType)
+
+-- ===========================
+-- INTERFACE GRÁFICA (GUI)
+-- ===========================
+
+local ScreenGui = Instance.new("ScreenGui")
+local MainFrame = Instance.new("Frame")
+
+ScreenGui.Parent = player:WaitForChild("PlayerGui")
+MainFrame.Parent = ScreenGui
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+MainFrame.BorderSizePixel = 0
+MainFrame.Position = UDim2.new(0.02, 0, 0.5, -200)
+MainFrame.Size = UDim2.new(1, 0, 0, 400)
+
+-- Funções auxiliares
+function CreateButton(parent, text, func, layoutOrder)
+    local button = Instance.new("TextButton")
+    button.Parent = parent
+    button.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    button.BorderSizePixel = 0
+    button.Size = UDim2.new(1, 0, 0, 30)
+    button.Text = text
+    button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    button.Font = Enum.Font.Gotham
+    button.TextSize = 14
+    button.LayoutOrder = layoutOrder
+    button.MouseButton1Click:Connect(func)
+    return button
+end
+
+function CreateTextBox(parent, placeholder, layoutOrder)
+    local frame = Instance.new("Frame")
+    frame.Parent = parent
+    frame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    frame.BorderSizePixel = 0
+    frame.Size = UDim2.new(1, 0, 0, 30)
+    frame.LayoutOrder = layoutOrder
+
+    local textBox = Instance.new("TextBox")
+    textBox.Parent = frame
+    textBox.BackgroundTransparency = 1
+    textBox.BorderSizePixel = 0
+    textBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    textBox.PlaceholderText = placeholder
+    textBox.Font = Enum.Font.Gotham
+    textBox.TextSize = 14
+    textBox.Size = UDim2.new(1, 0, 1, 0)
+    textBox.TextXAlignment = Enum.TextXAlignment.Center
+
+    return textBox
+end
+
+function CreateDropdown(parent, options, layoutOrder)
+    local dropdown = Instance.new("TextButton")
+    dropdown.Parent = parent
+    dropdown.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    dropdown.BorderSizePixel = 0
+    dropdown.Size = UDim2.new(1, 0, 0, 30)
+    dropdown.Text = "Selecione uma opção"
+    dropdown.TextColor3 = Color3.fromRGB(255, 255, 255)
+    dropdown.Font = Enum.Font.Gotham
+    dropdown.TextSize = 14
+    dropdown.LayoutOrder = layoutOrder
+
+    local selectedOption = nil
+    local open = false
+
+    dropdown.MouseButton1Click:Connect(function()
+        if open then
+            dropdown.Text = "Selecione uma opção"
+            selectedOption = nil
+            open = false
+        else
+            dropdown.Text = options[1]
+            selectedOption = options[1]
+            open = true
+        end
+    end)
+
+    return function() return selectedOption end
+end
+
+-- Criação das abas
+local TabButtons = Instance.new("Frame")
+TabButtons.Parent = MainFrame
+TabButtons.Size = UDim2.new(1, 0, 0, 30)
+TabButtons.BackgroundTransparency = 1
+
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.Parent = TabButtons
+UIListLayout.FillDirection = Enum.FillDirection.Horizontal
+UIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+UIListLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+UIListLayout.Padding = UDim.new(0, 5)
+
+local Tabs = {
+    Main = Instance.new("Frame"),
+    Music = Instance.new("Frame"),
+    Sky = Instance.new("Frame"),
+}
+
+for tabName, tab in pairs(Tabs) do
+    tab.Parent = MainFrame
+    tab.Size = UDim2.new(1, 0, 1, -35)
+    tab.Position = UDim2.new(0, 0, 0, 35)
+    tab.Visible = false
+    tab.ClipsDescendants = true
+end
+
+-- Botões de aba
+CreateButton(TabButtons, "Main", function()
+    for _, tab in pairs(Tabs) do tab.Visible = false end
+    Tabs.Main.Visible = true
+end, 1)
+
+CreateButton(TabButtons, "Music", function()
+    for _, tab in pairs(Tabs) do tab.Visible = false end
+    Tabs.Music.Visible = true
+end, 2)
+
+CreateButton(TabButtons, "Sky", function()
+    for _, tab in pairs(Tabs) do tab.Visible = false end
+    Tabs.Sky.Visible = true
+end, 3)
+
+-- Inicializa aba visível
+Tabs.Main.Visible = true
+
+-- ===========================
+-- SISTEMA DE FLY UNIVERSAL
+-- ===========================
+
+local flying = false
 local flySpeed = 50
+local bodyVelocity = nil
+local bodyGyro = nil
 
-local bodyVelocity, bodyGyro, flyConnection
+-- Botões virtuais para Mobile
+local flyUpButton = nil
+local flyDownButton = nil
+local isPressingUp = false
+local isPressingDown = false
 
-local redzlib = loadstring(game:HttpGet("https://raw.githubusercontent.com/tbao143/Library-ui/refs/heads/main/Redzhubui"))()
+local function createMobileButtons()
+    if deviceType ~= "Mobile" then return end
 
-local Window = redzlib:MakeWindow({
-    Title = "Dragon Hub 0.2",
-    SubTitle = "Sistema de Movimento"
-})
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "FlyMobileControls"
+    screenGui.ResetOnSpawn = false
+    screenGui.Parent = player:WaitForChild("PlayerGui")
 
--- Função para teleportar com clique
-local function setupClickTP()
-    local mouse = player:GetMouse()
+    -- Botão de Subir
+    flyUpButton = Instance.new("TextButton")
+    flyUpButton.Size = UDim2.new(0, 70, 0, 70)
+    flyUpButton.Position = UDim2.new(1, -90, 1, -180)
+    flyUpButton.Text = "▲"
+    flyUpButton.TextSize = 30
+    flyUpButton.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+    flyUpButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    flyUpButton.BorderSizePixel = 0
+    flyUpButton.Parent = screenGui
 
-    mouse.Button1Down:Connect(function()
-        if not clickTPEnabled or not character or not rootPart then return end
+    local upCorner = Instance.new("UICorner")
+    upCorner.CornerRadius = UDim.new(0, 15)
+    upCorner.Parent = flyUpButton
 
-        local targetPosition = mouse.Hit.Position
-        if targetPosition and (rootPart.Position - targetPosition).Magnitude <= 1000 then
-            rootPart.CFrame = CFrame.new(targetPosition + Vector3.new(0, 3, 0))
+    -- Botão de Descer
+    flyDownButton = Instance.new("TextButton")
+    flyDownButton.Size = UDim2.new(0, 70, 0, 70)
+    flyDownButton.Position = UDim2.new(1, -90, 1, -100)
+    flyDownButton.Text = "▼"
+    flyDownButton.TextSize = 30
+    flyDownButton.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
+    flyDownButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    flyDownButton.BorderSizePixel = 0
+    flyDownButton.Parent = screenGui
+
+    local downCorner = Instance.new("UICorner")
+    downCorner.CornerRadius = UDim.new(0, 15)
+    downCorner.Parent = flyDownButton
+
+    -- Eventos de toque
+    flyUpButton.TouchLongPress:Connect(function() isPressingUp = true end)
+    flyUpButton.TouchEnded:Connect(function() isPressingUp = false end)
+    flyUpButton.MouseButton1Down:Connect(function() isPressingUp = true end)
+    flyUpButton.MouseButton1Up:Connect(function() isPressingUp = false end)
+
+    flyDownButton.TouchLongPress:Connect(function() isPressingDown = true end)
+    flyDownButton.TouchEnded:Connect(function() isPressingDown = false end)
+    flyDownButton.MouseButton1Down:Connect(function() isPressingDown = true end)
+    flyDownButton.MouseButton1Up:Connect(function() isPressingDown = false end)
+
+    screenGui.Enabled = false
+    return screenGui
+end
+
+local mobileGui = createMobileButtons()
+
+local function startFly()
+    local character = player.Character
+    if not character then return end
+
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    local humanoid = character:FindFirstChild("Humanoid")
+    if not humanoidRootPart or not humanoid then return end
+
+    flying = true
+    humanoid.PlatformStand = true
+
+    bodyVelocity = Instance.new("BodyVelocity")
+    bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+    bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+    bodyVelocity.Parent = humanoidRootPart
+
+    bodyGyro = Instance.new("BodyGyro")
+    bodyGyro.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+    bodyGyro.CFrame = humanoidRootPart.CFrame
+    bodyGyro.P = 9e4
+    bodyGyro.Parent = humanoidRootPart
+
+    if mobileGui then
+        mobileGui.Enabled = true
+    end
+end
+
+local function stopFly()
+    flying = false
+
+    local character = player.Character
+    if character then
+        local humanoid = character:FindFirstChild("Humanoid")
+        if humanoid then
+            humanoid.PlatformStand = false
+        end
+    end
+
+    if bodyVelocity then bodyVelocity:Destroy() end
+    if bodyGyro then bodyGyro:Destroy() end
+
+    if mobileGui then
+        mobileGui.Enabled = false
+    end
+
+    isPressingUp = false
+    isPressingDown = false
+end
+
+-- Loop de movimento do Fly
+RunService.Heartbeat:Connect(function()
+    if not flying then return end
+
+    local character = player.Character
+    if not character then return end
+
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    local humanoid = character:FindFirstChild("Humanoid")
+    if not humanoidRootPart or not humanoid or not bodyVelocity or not bodyGyro then return end
+
+    local camera = workspace.CurrentCamera
+    local moveDirection = Vector3.new(0, 0, 0)
+
+    -- PC
+    if deviceType == "PC" then
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDirection = moveDirection + camera.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDirection = moveDirection - camera.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDirection = moveDirection - camera.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDirection = moveDirection + camera.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDirection = moveDirection + Vector3.new(0, 1, 0) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then moveDirection = moveDirection - Vector3.new(0, 1, 0) end
+    end
+
+    -- Mobile
+    if deviceType == "Mobile" then
+        local moveVector = humanoid.MoveVector
+        if moveVector.Magnitude > 0 then
+            moveDirection = moveDirection + (camera.CFrame.LookVector * moveVector.Z)
+            moveDirection = moveDirection + (camera.CFrame.RightVector * moveVector.X)
+        end
+        if isPressingUp then moveDirection = moveDirection + Vector3.new(0, 1, 0) end
+        if isPressingDown then moveDirection = moveDirection - Vector3.new(0, 1, 0) end
+    end
+
+    if moveDirection.Magnitude > 0 then
+        bodyVelocity.Velocity = moveDirection.Unit * flySpeed
+    else
+        bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+    end
+
+    bodyGyro.CFrame = camera.CFrame
+end)
+
+-- Atalho para PC
+if deviceType == "PC" then
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        if input.KeyCode == Enum.KeyCode.F then
+            if flying then stopFly() else startFly() end
         end
     end)
 end
 
-local Tab1 = Window:MakeTab({"Movimento", "rbxassetid://7733764088"})
+-- Botão Fly
+CreateButton(Tabs.Main, "Fly (F)", function()
+    if flying then stopFly() else startFly() end
+end, 1)
 
--- ===== Fly System =====
-Tab1:AddSection({"Fly System"})
-
-Tab1:AddToggle({
-    Name = "Ativar Fly",
-    Default = false,
-    Callback = function(v)
-        if v then startFly() else stopFly() end
-    end
-})
-
-Tab1:AddSlider({
-    Text = "Velocidade Fly",
-    Min = 10,
-    Max = 200,
-    Default = 50,
-    Callback = function(v) flySpeed = v end
-})
-
--- ===== Speed System =====
-Tab1:AddSection({"Speed System"})
-
-Tab1:AddToggle({
-    Name = "Ativar Speed",
-    Default = false,
-    Callback = function(v)
-        speedEnabled = v
-        humanoid.WalkSpeed = v and speedValue or 16
-    end
-})
-
-Tab1:AddSlider({
-    Text = "Velocidade",
-    Min = 0,
-    Max = 100,
-    Default = 16,
-    Callback = function(v)
-        speedValue = v
-        if speedEnabled then humanoid.WalkSpeed = v end
-    end
-})
-
--- ===== Jump System =====
-Tab1:AddSection({"Jump System"})
-
-Tab1:AddToggle({
-    Name = "Ativar Jump",
-    Default = false,
-    Callback = function(v)
-        jumpEnabled = v
-        humanoid.JumpPower = v and jumpValue or 50
-    end
-})
-
-Tab1:AddSlider({
-    Text = "Força do Pulo",
-    Min = 0,
-    Max = 200,
-    Default = 50,
-    Callback = function(v)
-        jumpValue = v
-        if jumpEnabled then humanoid.JumpPower = v end
-    end
-})
-
--- ===== Click TP System =====
-Tab1:AddSection({"Click TP System"})
-
-Tab1:AddToggle({
-    Name = "Ativar Click TP",
-    Default = false,
-    Callback = function(v)
-        clickTPEnabled = v
-        if v then setupClickTP() end
-    end
-})
-
--- ===== Sky Coloration =====
-Tab1:AddSection({"Cor do Céu"})
-
-Tab1:AddColorPicker({
-    Name = "Cor do Céu",
-    Default = BrickColor.new("Bright blue"),
-    ColorPresets = {
-        {Name = "Azul", Color = BrickColor.new("Bright blue")},
-        {Name = "Vermelho", Color = BrickColor.new("Bright red")},
-        {Name = "Verde", Color = BrickColor.new("Bright green")},
-        {Name = "Roxo", Color = BrickColor.new("Bright purple")}
-    },
-    Callback = function(color)
-        local cframe = workspace.CurrentCamera.CFrame
-        local newSky = Instance.new("Sky")
-        newSky.Name = "Sky"
-        newSky.Parent = workspace
-        newSky.LightInfluence = 0.7
-        newSky.SunTopAngle = 90
-        newSky.SunBottomAngle = 90
-        newSky.TimeOfDay = 0
-        newSky.Brightness = 1
-        newSky.Color = color.Color
-        cframe = cframe * CFrame.new(0, 100, 0)
-        newSky.CFrame = cframe
-    end
-})
-
-Tab1:AddButton({"Ativar", function()
-    local currentSky = workspace:FindFirstChild("Sky")
-    if currentSky then
-        currentSky:Destroy()
-    else
-        Tab1:FindFirstChild("Cor do Céu").Callback()
-    end
-end})
-
--- ===== Config Tab =====
-local Tab2 = Window:MakeTab({"Config", "rbxassetid://7733955511"})
-
-Tab2:AddSection({"Sobre"})
-Tab2:AddParagraph({"Dragon Hub 0.2", "Sistema completo de movimento"})
-
-Tab2:AddButton({"Fechar", function()
-    if flyEnabled then stopFly() end
-    Window:Destroy()
-end})
-
--- ===== Funções de Fly (atualizado) =====
-local function startFly()
-    flyEnabled = true
-    local flightSpeed = flySpeed
-    local flightGravity = 0
-    local flyHeight = 10
-    local flyDamping = 0.9
-
-    local function fly()
-        local currentHeight = rootPart.Position.y
-        local newHeight = currentHeight + flightSpeed * (math.sin(RunService.Stepped:Get(), math.pi / 4) * flightSpeed)
-
-        if newHeight > currentHeight + flyHeight then
-            newHeight = currentHeight + flyHeight
-        elseif newHeight < currentHeight then
-            newHeight = currentHeight
-        end
-
-        local newVelocity = (newHeight - currentHeight) / 0.1
-        local newAcceleration = (newVelocity - rootPart.Velocity.y) / 0.1
-
-        rootPart.Velocity = Vector3.new(rootPart.Velocity.x, newVelocity, rootPart.Velocity.z)
-        rootPart.Acceleration = Vector3.new(rootPart.Acceleration.x, newAcceleration, rootPart.Acceleration.z)
-
-        if rootPart.Velocity.y < 0 then
-            rootPart.Velocity = Vector3.new(rootPart.Velocity.x, 0, rootPart.Velocity.z)
-            rootPart.CFrame = CFrame.new(rootPart.CFrame.Position, rootPart.CFrame.Position + Vector3.new(0, 1, 0))
+-- Outras funcionalidades
+CreateButton(Tabs.Main, "NoClip", function()
+    local char = player.Character
+    if char then
+        for _, part in pairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.Anchored = false
+            end
         end
     end
+end, 2)
 
-    local function stopFly()
-        flyEnabled = false
+CreateButton(Tabs.Main, "Speed +100", function()
+    local char = player.Character
+    if char and char:FindFirstChild("Humanoid") then
+        char.Humanoid.WalkSpeed = 100
     end
+end, 3)
 
-    local function onCharacterAdded()
-        character:WaitForChild("Humanoid").WalkSpeed = 0
-        local oldPosition = rootPart.Position
-        local oldVelocity = rootPart.Velocity
-        local oldAcceleration = rootPart.Acceleration
-
-        rootPart.Changed:Connect(function(prop)
-            if prop == "Velocity" then
-                local newVelocity = rootPart.Velocity
-                if newVelocity.Magnitude <= 1 then
-                    stopFly()
-                end
-            end
-        end)
-
-        RunService.Heartbeat:Connect(function()
-            if not flyEnabled then return end
-
-            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-                local currentVelocity = rootPart.Velocity.y
-                local newVelocity = currentVelocity + flightGravity * math.abs(currentVelocity)
-                local newAcceleration = (newVelocity - currentVelocity) / 0.1
-
-                rootPart.Velocity = Vector3.new(rootPart.Velocity.x, newVelocity, rootPart.Velocity.z)
-                rootPart.Acceleration = Vector3.new(rootPart.Acceleration.x, newAcceleration, rootPart.Acceleration.z)
-            end
-
-            fly()
-        end)
+CreateButton(Tabs.Main, "JumpPower +100", function()
+    local char = player.Character
+    if char and char:FindFirstChild("Humanoid") then
+        char.Humanoid.JumpPower = 100
     end
+end, 4)
 
-    character.CharacterAdded:Connect(onCharacterAdded)
-    onCharacterAdded()
-end
+-- ✅ NOVA FUNCIONALIDADE: Click TP
+local teleportEnabled = false
 
-local function stopFly()
-    flyEnabled = false
-end
+CreateButton(Tabs.Main, "Click TP (Ativar)", function()
+    teleportEnabled = not teleportEnabled
+    print(teleportEnabled and "Click TP ativado" or "Click TP desativado")
+end, 5)
 
--- ===== Atualização de Personagem =====
-player.CharacterAdded:Connect(function(char)
-    character = char
-    humanoid = char:WaitForChild("Humanoid")
-    rootPart = char:WaitForChild("HumanoidRootPart")
-    if flyEnabled then stopFly() end
+player:GetMouse().Button1Down:Connect(function()
+    if teleportEnabled and player:GetMouse().Target then
+        local char = player.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            hrp.CFrame = CFrame.new(player:GetMouse().Hit.p + Vector3.new(0, 5, 0))
+        end
+    end
 end)
