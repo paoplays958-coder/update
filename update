@@ -1,10 +1,11 @@
 -- ════════════════════════════════════════════════════════════════
---    🐉 DRAGON HUB - BY PAOZIN
+--    🐉 DRAGON HUB 3.0
+--    BETA 0.1 by: paozin
 --    Discord: discord.gg/pVsWE7WszB
 --    COMPATÍVEL COM TODOS OS EXECUTORES PC/MOBILE
 -- ════════════════════════════════════════════════════════════════
 
-print("🐉 Dragon Hub - by:paozin Carregando...")
+print("🐉 Dragon Hub 3.0 - Beta 0.1 by:paozin Carregando...")
 
 task.wait(2)
 
@@ -15,7 +16,8 @@ local success, Services = pcall(function()
         UserInputService = game:GetService("UserInputService"),
         RunService = game:GetService("RunService"),
         Lighting = game:GetService("Lighting"),
-        VirtualUser = game:GetService("VirtualUser")
+        VirtualUser = game:GetService("VirtualUser"),
+        ReplicatedStorage = game:GetService("ReplicatedStorage")
     }
 end)
 
@@ -28,6 +30,7 @@ local Players = Services.Players
 local UserInputService = Services.UserInputService
 local RunService = Services.RunService
 local Lighting = Services.Lighting
+local ReplicatedStorage = Services.ReplicatedStorage
 
 -- ========== VERIFICAÇÃO DO PLAYER ==========
 local player = Players.LocalPlayer
@@ -65,14 +68,35 @@ if not uiSuccess or not redzlib then
 end
 
 local Window = redzlib:MakeWindow({
-    Title = "🐉 Dragon Hub",
-    SubTitle = "by:paozin"
+    Title = "🐉 Dragon Hub 3.0",
+    SubTitle = "Beta 0.1 by: paozin"
 })
 
 -- ========== VARIÁVEIS ORIGINAIS ==========
 local originalWalkSpeed = humanoid.WalkSpeed or 16
 local originalJumpPower = humanoid.JumpPower or 50
 local originalGravity = workspace.Gravity or 196.2
+local originalFOV = 70
+local originalBrightness = Lighting.Brightness
+local originalFogEnd = Lighting.FogEnd
+local originalAmbient = Lighting.Ambient
+
+-- ========== VARIÁVEIS DE CONTROLE ==========
+local activeConnections = {}
+local activeToggles = {
+    fly = false,
+    speed = false,
+    jump = false,
+    infiniteJump = false,
+    noclip = false,
+    carSpeed = false,
+    carFly = false,
+    clickTP = false,
+    esp = false,
+    fullbright = false,
+    antiAFK = false,
+    antiBan = false
+}
 
 -- ========== FUNÇÕES AUXILIARES ==========
 
@@ -89,7 +113,7 @@ local function getPlayersList()
     return #list > 0 and list or {"Nenhum"}
 end
 
--- NOVO: Lista de jogadores COM seus carros
+-- Lista de jogadores COM seus carros
 local function getPlayersWithCars()
     local list = {}
     pcall(function()
@@ -119,6 +143,65 @@ local function getPlayerCar(playerName)
         end
     end
     return nil
+end
+
+-- CORRIGIDO: Função para clonar carros existentes no mapa
+local function spawnVehiclesFromMap()
+    local spawnedCount = 0
+    local vehiclesFound = {}
+    
+    pcall(function()
+        -- Encontrar todos os carros no mapa
+        for _, obj in pairs(workspace:GetDescendants()) do
+            if obj:IsA("VehicleSeat") and obj.Parent and obj.Parent:IsA("Model") then
+                local carModel = obj.Parent
+                
+                -- Verificar se é um carro válido
+                if carModel.Name ~= "Workspace" and carModel:FindFirstChild("VehicleSeat") then
+                    table.insert(vehiclesFound, carModel)
+                end
+            end
+        end
+        
+        -- Se encontrou carros, clonar 5 deles
+        if #vehiclesFound > 0 then
+            local basePosition = rootPart.Position
+            
+            for i = 1, 5 do
+                -- Pegar um carro aleatório da lista
+                local randomCar = vehiclesFound[math.random(1, #vehiclesFound)]
+                
+                if randomCar then
+                    -- Calcular posição em círculo
+                    local angle = (i - 1) * (360 / 5)
+                    local radians = math.rad(angle)
+                    local distance = 20
+                    
+                    local x = basePosition.X + (math.cos(radians) * distance)
+                    local z = basePosition.Z + (math.sin(radians) * distance)
+                    local y = basePosition.Y + 2
+                    
+                    -- Clonar o carro
+                    local clonedCar = randomCar:Clone()
+                    
+                    -- Posicionar
+                    if clonedCar.PrimaryPart then
+                        clonedCar:SetPrimaryPartCFrame(CFrame.new(x, y, z))
+                    elseif clonedCar:FindFirstChild("VehicleSeat") then
+                        clonedCar:MoveTo(Vector3.new(x, y, z))
+                    end
+                    
+                    -- Adicionar ao workspace
+                    clonedCar.Parent = workspace
+                    spawnedCount = spawnedCount + 1
+                    
+                    task.wait(0.3)
+                end
+            end
+        end
+    end)
+    
+    return spawnedCount
 end
 
 -- ========== BUILD TOOL ==========
@@ -197,17 +280,17 @@ Tab1:AddSection({"Voo"})
 
 local flying = false
 local flySpeed = 50
-local flyBody, flyGyro, flyConnection
+local flyBody, flyGyro
 
 Tab1:AddToggle({
     Name = "Fly",
     Default = false,
     Callback = function(v)
         flying = v
+        activeToggles.fly = v
         
         pcall(function()
             if v then
-                -- Criar componentes de voo
                 flyBody = Instance.new("BodyVelocity")
                 flyBody.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
                 flyBody.Velocity = Vector3.new(0, 0, 0)
@@ -218,8 +301,7 @@ Tab1:AddToggle({
                 flyGyro.P = 9000
                 flyGyro.Parent = rootPart
                 
-                -- Loop de voo
-                flyConnection = RunService.Heartbeat:Connect(function()
+                activeConnections.fly = RunService.Heartbeat:Connect(function()
                     if not flying then return end
                     
                     pcall(function()
@@ -231,7 +313,6 @@ Tab1:AddToggle({
                         local cam = workspace.CurrentCamera
                         local direction = Vector3.new(0, 0, 0)
                         
-                        -- Controle Mobile
                         if isMobile then
                             if humanoid and humanoid.MoveVector then
                                 local move = humanoid.MoveVector
@@ -239,7 +320,6 @@ Tab1:AddToggle({
                                     direction = (cam.CFrame.LookVector * move.Z) + (cam.CFrame.RightVector * move.X)
                                 end
                             end
-                        -- Controle PC
                         else
                             if UserInputService:IsKeyDown(Enum.KeyCode.W) then 
                                 direction = direction + cam.CFrame.LookVector 
@@ -261,7 +341,6 @@ Tab1:AddToggle({
                             end
                         end
                         
-                        -- Aplicar movimento
                         if direction.Magnitude > 0 then
                             direction = direction.Unit
                             flyBody.Velocity = direction * flySpeed
@@ -275,12 +354,11 @@ Tab1:AddToggle({
                 
                 print("✓ Fly ativado")
             else
-                -- Desativar fly
                 flying = false
                 
-                if flyConnection then 
-                    flyConnection:Disconnect() 
-                    flyConnection = nil
+                if activeConnections.fly then 
+                    activeConnections.fly:Disconnect() 
+                    activeConnections.fly = nil
                 end
                 
                 if flyBody and flyBody.Parent then 
@@ -318,8 +396,10 @@ Tab1:AddToggle({
     Name = "Speed",
     Default = false,
     Callback = function(v)
+        speedEnabled = v
+        activeToggles.speed = v
+        
         pcall(function()
-            speedEnabled = v
             if humanoid then
                 humanoid.WalkSpeed = v and speedValue or originalWalkSpeed
             end
@@ -351,8 +431,10 @@ Tab1:AddToggle({
     Name = "Jump Boost",
     Default = false,
     Callback = function(v)
+        jumpEnabled = v
+        activeToggles.jump = v
+        
         pcall(function()
-            jumpEnabled = v
             if humanoid then
                 humanoid.JumpPower = v and jumpValue or originalJumpPower
             end
@@ -375,15 +457,15 @@ Tab1:AddSlider({
     end
 })
 
-local infiniteJumpConnection
-
 Tab1:AddToggle({
     Name = "Infinite Jump",
     Default = false,
     Callback = function(v)
+        activeToggles.infiniteJump = v
+        
         pcall(function()
             if v then
-                infiniteJumpConnection = UserInputService.JumpRequest:Connect(function()
+                activeConnections.infiniteJump = UserInputService.JumpRequest:Connect(function()
                     pcall(function()
                         if humanoid then
                             humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
@@ -391,9 +473,9 @@ Tab1:AddToggle({
                     end)
                 end)
             else
-                if infiniteJumpConnection then 
-                    infiniteJumpConnection:Disconnect() 
-                    infiniteJumpConnection = nil
+                if activeConnections.infiniteJump then 
+                    activeConnections.infiniteJump:Disconnect() 
+                    activeConnections.infiniteJump = nil
                 end
             end
         end)
@@ -402,18 +484,15 @@ Tab1:AddToggle({
 
 Tab1:AddSection({"Atravessar"})
 
-local noclipEnabled = false
-local noclipConnection
-
 Tab1:AddToggle({
     Name = "Noclip",
     Default = false,
     Callback = function(v)
-        noclipEnabled = v
+        activeToggles.noclip = v
         
         pcall(function()
             if v then
-                noclipConnection = RunService.Stepped:Connect(function()
+                activeConnections.noclip = RunService.Stepped:Connect(function()
                     pcall(function()
                         if not character then return end
                         for _, part in pairs(character:GetDescendants()) do
@@ -424,9 +503,9 @@ Tab1:AddToggle({
                     end)
                 end)
             else
-                if noclipConnection then 
-                    noclipConnection:Disconnect() 
-                    noclipConnection = nil
+                if activeConnections.noclip then 
+                    activeConnections.noclip:Disconnect() 
+                    activeConnections.noclip = nil
                 end
                 
                 pcall(function()
@@ -441,15 +520,30 @@ Tab1:AddToggle({
     end
 })
 
--- ========== TAB 2: VEÍCULOS (REFORMULADO IGUAL ESPIAR JOGADOR) ==========
+-- ========== TAB 2: VEÍCULOS (CORRIGIDO) ==========
 local Tab2 = Window:MakeTab({"Veículos", "shopping-cart"})
 
-Tab2:AddSection({"Selecionar Jogador com Carro"})
+Tab2:AddSection({"Spawnar Veículos"})
+
+Tab2:AddButton({"Spawnar 5 Carros Aleatórios", function()
+    pcall(function()
+        print("🚗 Procurando carros no mapa...")
+        local count = spawnVehiclesFromMap()
+        
+        if count > 0 then
+            print("✓", count, "carro(s) spawnado(s) ao seu redor!")
+        else
+            print("✗ Nenhum carro encontrado no mapa")
+            print("ℹ️ Tente andar pelo mapa até encontrar carros")
+        end
+    end)
+end})
+
+Tab2:AddSection({"Controle de Veículos"})
 
 local selectedCarPlayer = nil
 local carSpeedEnabled = false
 local carSpeedValue = 50
-local carConnection
 
 local carPlayerDrop = Tab2:AddDropdown({
     Name = "Selecionar Jogador",
@@ -478,14 +572,14 @@ Tab2:AddToggle({
     Default = false,
     Callback = function(v)
         carSpeedEnabled = v
+        activeToggles.carSpeed = v
         
         pcall(function()
             if v then
                 if selectedCarPlayer and selectedCarPlayer ~= "Nenhum" then
-                    -- Extrair nome do jogador (antes do parêntese)
                     local playerName = selectedCarPlayer:match("(.+)%s%(")
                     
-                    carConnection = RunService.Heartbeat:Connect(function()
+                    activeConnections.carSpeed = RunService.Heartbeat:Connect(function()
                         pcall(function()
                             if not carSpeedEnabled then return end
                             
@@ -506,12 +600,11 @@ Tab2:AddToggle({
                     carSpeedEnabled = false
                 end
             else
-                if carConnection then 
-                    carConnection:Disconnect() 
-                    carConnection = nil
+                if activeConnections.carSpeed then 
+                    activeConnections.carSpeed:Disconnect() 
+                    activeConnections.carSpeed = nil
                 end
                 
-                -- Resetar velocidade
                 pcall(function()
                     if selectedCarPlayer and selectedCarPlayer ~= "Nenhum" then
                         local playerName = selectedCarPlayer:match("(.+)%s%(")
@@ -539,7 +632,6 @@ Tab2:AddSlider({
     Default = 50,
     Callback = function(v)
         carSpeedValue = v
-        print("✓ Velocidade ajustada para:", v)
     end
 })
 
@@ -547,13 +639,14 @@ Tab2:AddSection({"Car Fly"})
 
 local carFlyEnabled = false
 local carFlySpeed = 70
-local carFlyBody, carFlyGyro, carFlyConnection
+local carFlyBody, carFlyGyro
 
 Tab2:AddToggle({
     Name = "Car Fly",
     Default = false,
     Callback = function(v)
         carFlyEnabled = v
+        activeToggles.carFly = v
         
         pcall(function()
             if v then
@@ -570,7 +663,7 @@ Tab2:AddToggle({
                     carFlyGyro.P = 9000
                     carFlyGyro.Parent = seat
                     
-                    carFlyConnection = RunService.Heartbeat:Connect(function()
+                    activeConnections.carFly = RunService.Heartbeat:Connect(function()
                         pcall(function()
                             if not carFlyEnabled or not humanoid.SeatPart then return end
                             
@@ -608,9 +701,9 @@ Tab2:AddToggle({
                     print("✗ Entre em um carro primeiro!")
                 end
             else
-                if carFlyConnection then 
-                    carFlyConnection:Disconnect() 
-                    carFlyConnection = nil
+                if activeConnections.carFly then 
+                    activeConnections.carFly:Disconnect() 
+                    activeConnections.carFly = nil
                 end
                 if carFlyBody and carFlyBody.Parent then carFlyBody:Destroy() end
                 carFlyBody = nil
@@ -632,7 +725,7 @@ Tab2:AddSlider({
     end
 })
 
--- ========== TAB 3: TELEPORTE ==========
+-- ========== TAB 3: TELEPORTE (CORRIGIDO) ==========
 local Tab3 = Window:MakeTab({"Teleporte", "map-pin"})
 
 Tab3:AddSection({"Teleporte para Jogadores"})
@@ -671,59 +764,56 @@ Tab3:AddSection({"Locais de Brookhaven"})
 
 local locations = {
     ["Spawn"] = CFrame.new(-119.7, 8.2, 94.5),
-    ["Loja de Carros"] = CFrame.new(-357.5, 8.2, 647.3),
     ["Hospital"] = CFrame.new(-225.9, 8.2, -474.3),
     ["Escola"] = CFrame.new(286.3, 8.2, -733.5),
     ["Banco"] = CFrame.new(-390.6, 8.2, -26.8),
     ["Igreja"] = CFrame.new(124.8, 8.2, -490.7),
     ["Praia"] = CFrame.new(-1034.5, 8.2, 523.8),
-    ["Polícia"] = CFrame.new(-257.3, 8.2, -128.4)
+    ["Supermercado"] = CFrame.new(-450.2, 8.2, 120.5)
 }
 
-local locationNames = {}
-for name, _ in pairs(locations) do
-    table.insert(locationNames, name)
-end
+local selectedLocation = "Spawn"
 
 Tab3:AddDropdown({
     Name = "Selecionar Local",
-    Options = locationNames,
+    Options = {"Spawn", "Hospital", "Escola", "Banco", "Igreja", "Praia", "Supermercado"},
     Default = "Spawn",
     Callback = function(v)
-        pcall(function()
-            if locations[v] then
-                rootPart.CFrame = locations[v]
-                print("✓ Teleportado para:", v)
-            end
-        end)
+        selectedLocation = v
     end
 })
 
-Tab3:AddSection({"Click Teleport"})
+Tab3:AddButton({"Teleportar para Local", function()
+    pcall(function()
+        if locations[selectedLocation] then
+            rootPart.CFrame = locations[selectedLocation]
+            print("✓ Teleportado para:", selectedLocation)
+        end
+    end)
+end})
 
-local clickTPEnabled = false
-local clickTPConnection
+Tab3:AddSection({"Click Teleport"})
 
 Tab3:AddToggle({
     Name = "Click TP",
     Default = false,
     Callback = function(v)
-        clickTPEnabled = v
+        activeToggles.clickTP = v
         
         pcall(function()
             if v then
                 local mouse = player:GetMouse()
-                clickTPConnection = mouse.Button1Down:Connect(function()
+                activeConnections.clickTP = mouse.Button1Down:Connect(function()
                     pcall(function()
-                        if clickTPEnabled and mouse.Target then
+                        if activeToggles.clickTP and mouse.Target then
                             rootPart.CFrame = CFrame.new(mouse.Hit.Position + Vector3.new(0, 3, 0))
                         end
                     end)
                 end)
             else
-                if clickTPConnection then 
-                    clickTPConnection:Disconnect() 
-                    clickTPConnection = nil
+                if activeConnections.clickTP then 
+                    activeConnections.clickTP:Disconnect() 
+                    activeConnections.clickTP = nil
                 end
             end
         end)
@@ -735,14 +825,13 @@ local Tab4 = Window:MakeTab({"Visual", "eye"})
 
 Tab4:AddSection({"ESP de Jogadores"})
 
-local espEnabled = false
 local espObjects = {}
 
 Tab4:AddToggle({
     Name = "ESP",
     Default = false,
     Callback = function(v)
-        espEnabled = v
+        activeToggles.esp = v
         
         pcall(function()
             if v then
@@ -776,13 +865,15 @@ Tab4:AddToggle({
     Name = "Fullbright",
     Default = false,
     Callback = function(v)
+        activeToggles.fullbright = v
+        
         pcall(function()
             if v then
                 Lighting.Brightness = 2
                 Lighting.FogEnd = 100000
             else
-                Lighting.Brightness = 1
-                Lighting.FogEnd = 1000
+                Lighting.Brightness = originalBrightness
+                Lighting.FogEnd = originalFogEnd
             end
         end)
     end
@@ -797,7 +888,7 @@ Tab4:AddDropdown({
     Callback = function(v)
         pcall(function()
             if v == "Normal" then
-                Lighting.Ambient = Color3.fromRGB(138, 138, 138)
+                Lighting.Ambient = originalAmbient
             elseif v == "Azul" then
                 Lighting.Ambient = Color3.fromRGB(100, 150, 255)
             elseif v == "Vermelho" then
@@ -923,20 +1014,20 @@ Tab5:AddButton({"Pegar Todos Itens", function()
     end)
 end})
 
--- ========== TAB 6: DIVERSOS ==========
+-- ========== TAB 6: DIVERSOS (ANTI-BAN CORRIGIDO) ==========
 local Tab6 = Window:MakeTab({"Diversos", "settings"})
 
 Tab6:AddSection({"Anti-AFK"})
-
-local antiAFKConnection
 
 Tab6:AddToggle({
     Name = "Anti-AFK",
     Default = false,
     Callback = function(v)
+        activeToggles.antiAFK = v
+        
         pcall(function()
             if v then
-                antiAFKConnection = player.Idled:Connect(function()
+                activeConnections.antiAFK = player.Idled:Connect(function()
                     pcall(function()
                         Services.VirtualUser:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
                         task.wait(1)
@@ -945,9 +1036,9 @@ Tab6:AddToggle({
                 end)
                 print("✓ Anti-AFK ativado")
             else
-                if antiAFKConnection then 
-                    antiAFKConnection:Disconnect() 
-                    antiAFKConnection = nil
+                if activeConnections.antiAFK then 
+                    activeConnections.antiAFK:Disconnect() 
+                    activeConnections.antiAFK = nil
                 end
                 print("✓ Anti-AFK desativado")
             end
@@ -957,23 +1048,56 @@ Tab6:AddToggle({
 
 Tab6:AddSection({"Anti-Ban"})
 
-Tab6:AddButton({"Ativar Anti-Ban", function()
-    pcall(function()
-        local count = 0
-        for _, v in pairs(workspace:GetDescendants()) do
-            if v:IsA("TouchTransmitter") then
-                v:Destroy()
-                count = count + 1
+Tab6:AddToggle({
+    Name = "Anti-Ban",
+    Default = false,
+    Callback = function(v)
+        activeToggles.antiBan = v
+        
+        pcall(function()
+            if v then
+                local count = 0
+                
+                -- Remover TouchTransmitters
+                for _, obj in pairs(workspace:GetDescendants()) do
+                    if obj:IsA("TouchTransmitter") then
+                        obj:Destroy()
+                        count = count + 1
+                    end
+                    
+                    -- Desabilitar colisões com portas
+                    if obj:IsA("Part") and (obj.Name:lower():match("door") or obj.Name:lower():match("gate") or obj.Name:lower():match("barrier")) then
+                        obj.CanCollide = false
+                    end
+                end
+                
+                -- Monitorar novos TouchTransmitters
+                activeConnections.antiBan = workspace.DescendantAdded:Connect(function(obj)
+                    pcall(function()
+                        if activeToggles.antiBan then
+                            if obj:IsA("TouchTransmitter") then
+                                task.wait(0.1)
+                                obj:Destroy()
+                            end
+                            
+                            if obj:IsA("Part") and (obj.Name:lower():match("door") or obj.Name:lower():match("gate") or obj.Name:lower():match("barrier")) then
+                                obj.CanCollide = false
+                            end
+                        end
+                    end)
+                end)
+                
+                print("✓ Anti-Ban ativado! Removidos:", count, "detectores")
+            else
+                if activeConnections.antiBan then 
+                    activeConnections.antiBan:Disconnect() 
+                    activeConnections.antiBan = nil
+                end
+                print("✓ Anti-Ban desativado")
             end
-            
-            -- Desabilitar colisões com portas
-            if v:IsA("Part") and (v.Name:lower():match("door") or v.Name:lower():match("gate")) then
-                v.CanCollide = false
-            end
-        end
-        print("✓ Anti-Ban ativado! Removidos:", count, "detectores")
-    end)
-end})
+        end)
+    end
+})
 
 Tab6:AddSection({"Física"})
 
@@ -996,7 +1120,7 @@ Tab6:AddButton({"Resetar Gravidade", function()
     end)
 end})
 
--- ========== TAB 7: CONFIG ==========
+-- ========== TAB 7: CONFIG (RESETAR CORRIGIDO) ==========
 local Tab7 = Window:MakeTab({"Config", "list"})
 
 Tab7:AddSection({"Discord"})
@@ -1012,25 +1136,59 @@ Tab7:AddSection({"Controles"})
 
 Tab7:AddButton({"Resetar Tudo", function()
     pcall(function()
+        print("🔄 Resetando tudo...")
+        
         -- Desativar fly
         flying = false
-        if flyConnection then flyConnection:Disconnect() end
+        activeToggles.fly = false
+        if activeConnections.fly then activeConnections.fly:Disconnect() end
+        activeConnections.fly = nil
         if flyBody and flyBody.Parent then flyBody:Destroy() end
+        flyBody = nil
         if flyGyro and flyGyro.Parent then flyGyro:Destroy() end
+        flyGyro = nil
         
         -- Desativar noclip
-        if noclipConnection then noclipConnection:Disconnect() end
+        activeToggles.noclip = false
+        if activeConnections.noclip then activeConnections.noclip:Disconnect() end
+        activeConnections.noclip = nil
+        for _, part in pairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = true
+            end
+        end
         
         -- Desativar car speed/fly
-        if carConnection then carConnection:Disconnect() end
-        if carFlyConnection then carFlyConnection:Disconnect() end
+        carSpeedEnabled = false
+        carFlyEnabled = false
+        activeToggles.carSpeed = false
+        activeToggles.carFly = false
+        if activeConnections.carSpeed then activeConnections.carSpeed:Disconnect() end
+        if activeConnections.carFly then activeConnections.carFly:Disconnect() end
+        activeConnections.carSpeed = nil
+        activeConnections.carFly = nil
         if carFlyBody and carFlyBody.Parent then carFlyBody:Destroy() end
+        carFlyBody = nil
         if carFlyGyro and carFlyGyro.Parent then carFlyGyro:Destroy() end
+        carFlyGyro = nil
         
         -- Desativar outros
-        if clickTPConnection then clickTPConnection:Disconnect() end
-        if infiniteJumpConnection then infiniteJumpConnection:Disconnect() end
-        if antiAFKConnection then antiAFKConnection:Disconnect() end
+        activeToggles.clickTP = false
+        activeToggles.infiniteJump = false
+        activeToggles.antiAFK = false
+        activeToggles.antiBan = false
+        activeToggles.esp = false
+        activeToggles.fullbright = false
+        
+        if activeConnections.clickTP then activeConnections.clickTP:Disconnect() end
+        if activeConnections.infiniteJump then activeConnections.infiniteJump:Disconnect() end
+        if activeConnections.antiAFK then activeConnections.antiAFK:Disconnect() end
+        if activeConnections.antiBan then activeConnections.antiBan:Disconnect() end
+        
+        activeConnections.clickTP = nil
+        activeConnections.infiniteJump = nil
+        activeConnections.antiAFK = nil
+        activeConnections.antiBan = nil
         
         -- Remover ESP
         for _, highlight in pairs(espObjects) do
@@ -1039,24 +1197,37 @@ Tab7:AddButton({"Resetar Tudo", function()
         espObjects = {}
         
         -- Restaurar valores
+        speedEnabled = false
+        jumpEnabled = false
+        
         if humanoid then
             humanoid.WalkSpeed = originalWalkSpeed
             humanoid.JumpPower = originalJumpPower
         end
+        
         workspace.Gravity = originalGravity
         workspace.CurrentCamera.CameraSubject = humanoid
-        workspace.CurrentCamera.FieldOfView = 70
+        workspace.CurrentCamera.FieldOfView = originalFOV
         
-        Lighting.Brightness = 1
-        Lighting.FogEnd = 1000
-        Lighting.Ambient = Color3.fromRGB(138, 138, 138)
+        Lighting.Brightness = originalBrightness
+        Lighting.FogEnd = originalFogEnd
+        Lighting.Ambient = originalAmbient
         
-        print("✓ Tudo resetado!")
+        print("✓ TUDO RESETADO COM SUCESSO!")
+        print("✓ Velocidade:", originalWalkSpeed)
+        print("✓ Pulo:", originalJumpPower)
+        print("✓ Gravidade:", originalGravity)
+        print("✓ Todas as conexões desativadas")
     end)
 end})
 
 Tab7:AddButton({"Fechar Hub", function()
     pcall(function()
+        -- Resetar antes de fechar
+        for _, conn in pairs(activeConnections) do
+            if conn then conn:Disconnect() end
+        end
+        
         Window:Destroy()
         print("✓ Dragon Hub fechado!")
     end)
@@ -1093,5 +1264,83 @@ pcall(function()
     end)
 end)
 
-print("✓ Dragon Hub - by:paozin Carregado!")
-print("✓ Sistema de veículos reformulado!")
+print("✓ Dragon Hub 3.0 - Beta 0.1 by:paozin Carregado!")
+print("✓ Todos os bugs corrigidos!")
+print("✓ Otimizado para PC e Mobile!")
+
+
+local TabGAMEPASS = Window:MakeTab({"Free Gamepass", "star"})
+
+-- Toggle para Vehicle Pass
+TabGAMEPASS:AddToggle({
+    Name = "Todos carros bloqueados de graça",
+    Default = false,
+    Callback = function(v)
+        if v then
+            warn("✅ Vehicle Pass Toggle ativado!")
+            
+            _G.vehiclePassHook = hookmetamethod(game, "__namecall", function(self, ...)
+                local args = {...}
+                local method = getnamecallmethod()
+                
+                if method == "FireServer" and self.Name == "TelemetryClientInteraction" then
+                    if args[1] == "contextualUpsell" and args[2] and type(args[2]) == "table" then
+                        if args[2].reason == "vehice pass car" and args[2].itemId then
+                            local carName = args[2].itemId
+                            
+                            warn("🚗 VEHICLE PASS DETECTADO: " .. carName)
+                            
+                            task.spawn(function()
+                                task.wait(0.5)
+                                local spawnArgs = {"PickingCar", carName}
+                                game:GetService("ReplicatedStorage"):WaitForChild("RE"):WaitForChild("1Ca1r"):FireServer(unpack(spawnArgs))
+                                warn("✅ Carro spawnado: " .. carName)
+                            end)
+                        end
+                    end
+                end
+                
+                return _G.vehiclePassHook(self, ...)
+            end)
+        else
+            warn("❌ Vehicle Pass Toggle desativado!")
+        end
+    end
+})
+
+-- Toggle para Premium Cars
+TabGAMEPASS:AddToggle({
+    Name = "Todos carros premiums de graça",
+    Default = false,
+    Callback = function(v)
+        if v then
+            warn("✅ Premium Car Toggle ativado!")
+            
+            _G.premiumCarHook = hookmetamethod(game, "__namecall", function(self, ...)
+                local args = {...}
+                local method = getnamecallmethod()
+                
+                if method == "FireServer" and self.Name == "TelemetryClientInteraction" then
+                    if args[1] == "contextualUpsell" and args[2] and type(args[2]) == "table" then
+                        if args[2].reason == "premium car" and args[2].itemId then
+                            local carName = args[2].itemId
+                            
+                            warn("💎 PREMIUM CAR DETECTADO: " .. carName)
+                            
+                            task.spawn(function()
+                                task.wait(0.5)
+                                local spawnArgs = {"PickingCar", carName}
+                                game:GetService("ReplicatedStorage"):WaitForChild("RE"):WaitForChild("1Ca1r"):FireServer(unpack(spawnArgs))
+                                warn("✅ Carro premium spawnado: " .. carName)
+                            end)
+                        end
+                    end
+                end
+                
+                return _G.premiumCarHook(self, ...)
+            end)
+        else
+            warn("❌ Premium Car Toggle desativado!")
+        end
+    end
+})
