@@ -1,76 +1,127 @@
 -- ════════════════════════════════════════════════════════════════
---    🐉 DRAGON HUB 0.3 - VERSÃO CORRIGIDA
+--    🐉 DRAGON HUB - BY PAOZIN
 --    Discord: discord.gg/pVsWE7WszB
+--    COMPATÍVEL COM TODOS OS EXECUTORES PC/MOBILE
 -- ════════════════════════════════════════════════════════════════
 
-print("🐉 Dragon Hub 0.3 Carregando...")
+print("🐉 Dragon Hub - by:paozin Carregando...")
 
-wait(2)
+task.wait(2)
 
-local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
-local Lighting = game:GetService("Lighting")
+-- ========== VERIFICAÇÃO DE SERVIÇOS ==========
+local success, Services = pcall(function()
+    return {
+        Players = game:GetService("Players"),
+        UserInputService = game:GetService("UserInputService"),
+        RunService = game:GetService("RunService"),
+        Lighting = game:GetService("Lighting"),
+        VirtualUser = game:GetService("VirtualUser")
+    }
+end)
 
+if not success then
+    warn("❌ Erro ao carregar serviços!")
+    return
+end
+
+local Players = Services.Players
+local UserInputService = Services.UserInputService
+local RunService = Services.RunService
+local Lighting = Services.Lighting
+
+-- ========== VERIFICAÇÃO DO PLAYER ==========
 local player = Players.LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
-local humanoid = character:WaitForChild("Humanoid")
-local rootPart = character:WaitForChild("HumanoidRootPart")
+if not player then
+    warn("❌ Player não encontrado!")
+    return
+end
 
-local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid", 10)
+local rootPart = character:WaitForChild("HumanoidRootPart", 10)
+
+if not humanoid or not rootPart then
+    warn("❌ Humanoid ou RootPart não encontrado!")
+    return
+end
+
+-- ========== DETECÇÃO DE PLATAFORMA ==========
+local isMobile = false
+pcall(function()
+    isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+end)
 
 print("✓ Plataforma:", isMobile and "Mobile" or "PC")
 
-local redzlib = loadstring(game:HttpGet("https://raw.githubusercontent.com/tbao143/Library-ui/refs/heads/main/Redzhubui"))()
+-- ========== CARREGAR BIBLIOTECA UI ==========
+local redzlib
+local uiSuccess = pcall(function()
+    redzlib = loadstring(game:HttpGet("https://raw.githubusercontent.com/tbao143/Library-ui/refs/heads/main/Redzhubui"))()
+end)
+
+if not uiSuccess or not redzlib then
+    warn("❌ Erro ao carregar UI! Verifique sua internet.")
+    return
+end
 
 local Window = redzlib:MakeWindow({
-    Title = "🐉 Dragon Hub 0.3",
-    SubTitle = isMobile and "Mobile" or "PC"
+    Title = "🐉 Dragon Hub",
+    SubTitle = "by:paozin"
 })
 
-local originalWalkSpeed = humanoid.WalkSpeed
+-- ========== VARIÁVEIS ORIGINAIS ==========
+local originalWalkSpeed = humanoid.WalkSpeed or 16
 local originalJumpPower = humanoid.JumpPower or 50
-local originalGravity = workspace.Gravity
+local originalGravity = workspace.Gravity or 196.2
 
--- CORRIGIDO: Função de lista de jogadores
+-- ========== FUNÇÕES AUXILIARES ==========
+
+-- Lista de jogadores
 local function getPlayersList()
     local list = {}
-    for _, p in pairs(Players:GetPlayers()) do
-        if p ~= player then
-            table.insert(list, p.Name)
+    pcall(function()
+        for _, p in pairs(Players:GetPlayers()) do
+            if p ~= player and p.Name then
+                table.insert(list, p.Name)
+            end
         end
-    end
+    end)
     return #list > 0 and list or {"Nenhum"}
 end
 
-local function getVehiclesList()
-    local vehicles = {"Todos os Carros"}
-    
-    for _, plr in pairs(Players:GetPlayers()) do
-        if plr.Character then
-            local hum = plr.Character:FindFirstChild("Humanoid")
-            if hum and hum.SeatPart and hum.SeatPart:IsA("VehicleSeat") then
-                table.insert(vehicles, plr.Name .. "'s Car")
-            end
-        end
-    end
-    
-    for _, obj in pairs(workspace:GetDescendants()) do
-        if obj:IsA("VehicleSeat") and obj.Parent then
-            local dist = (obj.Position - rootPart.Position).Magnitude
-            if dist <= 50 then
-                local carName = obj.Parent.Name .. " (Perto)"
-                if not table.find(vehicles, carName) then
-                    table.insert(vehicles, carName)
+-- NOVO: Lista de jogadores COM seus carros
+local function getPlayersWithCars()
+    local list = {}
+    pcall(function()
+        for _, p in pairs(Players:GetPlayers()) do
+            if p.Character then
+                local hum = p.Character:FindFirstChild("Humanoid")
+                if hum and hum.SeatPart and hum.SeatPart:IsA("VehicleSeat") then
+                    local carModel = hum.SeatPart.Parent
+                    if carModel and carModel:IsA("Model") then
+                        local displayName = p.Name .. " (" .. carModel.Name .. ")"
+                        table.insert(list, displayName)
+                    end
                 end
             end
         end
-    end
-    
-    return vehicles
+    end)
+    return #list > 0 and list or {"Nenhum"}
 end
 
--- BUILD TOOL - CONFIGURAÇÃO
+-- Função para pegar o carro de um jogador específico
+local function getPlayerCar(playerName)
+    local targetPlayer = Players:FindFirstChild(playerName)
+    if targetPlayer and targetPlayer.Character then
+        local hum = targetPlayer.Character:FindFirstChild("Humanoid")
+        if hum and hum.SeatPart and hum.SeatPart:IsA("VehicleSeat") then
+            return hum.SeatPart.Parent
+        end
+    end
+    return nil
+end
+
+-- ========== BUILD TOOL ==========
 local selectedBlockType = "Bloco Cinza"
 
 local blockTypes = {
@@ -84,56 +135,62 @@ local blockTypes = {
 }
 
 local function createBuildTool()
-    for _, item in pairs(player.Backpack:GetChildren()) do
-        if item.Name == "Build Tool" then
-            item:Destroy()
-        end
-    end
-    
-    for _, item in pairs(character:GetChildren()) do
-        if item.Name == "Build Tool" and item:IsA("Tool") then
-            item:Destroy()
-        end
-    end
-    
-    local tool = Instance.new("Tool")
-    tool.Name = "Build Tool"
-    tool.RequiresHandle = false
-    tool.CanBeDropped = false
-    
-    local handle = Instance.new("Part")
-    handle.Name = "Handle"
-    handle.Size = Vector3.new(1, 1, 1)
-    handle.Transparency = 1
-    handle.CanCollide = false
-    handle.Parent = tool
-    
-    tool.Activated:Connect(function()
-        local mouse = player:GetMouse()
-        
-        if mouse.Target then
-            local blockConfig = blockTypes[selectedBlockType]
-            
-            local block = Instance.new("Part")
-            block.Size = Vector3.new(4, 1, 4)
-            block.Material = blockConfig.Material
-            block.Color = blockConfig.Color
-            block.Anchored = true
-            block.CFrame = CFrame.new(mouse.Hit.Position) * CFrame.new(0, 0.5, 0)
-            
-            if blockConfig.Transparency then
-                block.Transparency = blockConfig.Transparency
+    pcall(function()
+        -- Remover tools antigas
+        for _, item in pairs(player.Backpack:GetChildren()) do
+            if item.Name == "Build Tool" then
+                item:Destroy()
             end
-            
-            block.Parent = workspace
         end
+        
+        for _, item in pairs(character:GetChildren()) do
+            if item.Name == "Build Tool" and item:IsA("Tool") then
+                item:Destroy()
+            end
+        end
+        
+        -- Criar nova tool
+        local tool = Instance.new("Tool")
+        tool.Name = "Build Tool"
+        tool.RequiresHandle = false
+        tool.CanBeDropped = false
+        
+        local handle = Instance.new("Part")
+        handle.Name = "Handle"
+        handle.Size = Vector3.new(1, 1, 1)
+        handle.Transparency = 1
+        handle.CanCollide = false
+        handle.Parent = tool
+        
+        tool.Activated:Connect(function()
+            pcall(function()
+                local mouse = player:GetMouse()
+                
+                if mouse and mouse.Target then
+                    local blockConfig = blockTypes[selectedBlockType]
+                    
+                    local block = Instance.new("Part")
+                    block.Size = Vector3.new(4, 1, 4)
+                    block.Material = blockConfig.Material
+                    block.Color = blockConfig.Color
+                    block.Anchored = true
+                    block.CFrame = CFrame.new(mouse.Hit.Position) * CFrame.new(0, 0.5, 0)
+                    
+                    if blockConfig.Transparency then
+                        block.Transparency = blockConfig.Transparency
+                    end
+                    
+                    block.Parent = workspace
+                end
+            end)
+        end)
+        
+        tool.Parent = player.Backpack
+        print("✓ Build Tool criada:", selectedBlockType)
     end)
-    
-    tool.Parent = player.Backpack
-    print("✓ Build Tool criada:", selectedBlockType)
 end
 
--- TAB MOVIMENTO
+-- ========== TAB 1: MOVIMENTO ==========
 local Tab1 = Window:MakeTab({"Movimento", "home"})
 
 Tab1:AddSection({"Voo"})
@@ -148,43 +205,97 @@ Tab1:AddToggle({
     Callback = function(v)
         flying = v
         
-        if v then
-            flyBody = Instance.new("BodyVelocity", rootPart)
-            flyBody.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-            flyBody.Velocity = Vector3.zero
-            
-            flyGyro = Instance.new("BodyGyro", rootPart)
-            flyGyro.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
-            
-            flyConnection = RunService.Heartbeat:Connect(function()
-                if not flying then return end
+        pcall(function()
+            if v then
+                -- Criar componentes de voo
+                flyBody = Instance.new("BodyVelocity")
+                flyBody.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+                flyBody.Velocity = Vector3.new(0, 0, 0)
+                flyBody.Parent = rootPart
                 
-                local cam = workspace.CurrentCamera
-                local dir = Vector3.zero
+                flyGyro = Instance.new("BodyGyro")
+                flyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+                flyGyro.P = 9000
+                flyGyro.Parent = rootPart
                 
-                if isMobile then
-                    local move = humanoid.MoveVector
-                    if move.Magnitude > 0 then
-                        dir = cam.CFrame.LookVector * move.Z + cam.CFrame.RightVector * move.X
-                    end
-                else
-                    if UserInputService:IsKeyDown(Enum.KeyCode.W) then dir = dir + cam.CFrame.LookVector end
-                    if UserInputService:IsKeyDown(Enum.KeyCode.S) then dir = dir - cam.CFrame.LookVector end
-                    if UserInputService:IsKeyDown(Enum.KeyCode.A) then dir = dir - cam.CFrame.RightVector end
-                    if UserInputService:IsKeyDown(Enum.KeyCode.D) then dir = dir + cam.CFrame.RightVector end
-                    if UserInputService:IsKeyDown(Enum.KeyCode.Space) then dir = dir + Vector3.new(0, 1, 0) end
-                    if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then dir = dir - Vector3.new(0, 1, 0) end
+                -- Loop de voo
+                flyConnection = RunService.Heartbeat:Connect(function()
+                    if not flying then return end
+                    
+                    pcall(function()
+                        if not rootPart or not rootPart.Parent then
+                            flying = false
+                            return
+                        end
+                        
+                        local cam = workspace.CurrentCamera
+                        local direction = Vector3.new(0, 0, 0)
+                        
+                        -- Controle Mobile
+                        if isMobile then
+                            if humanoid and humanoid.MoveVector then
+                                local move = humanoid.MoveVector
+                                if move.Magnitude > 0 then
+                                    direction = (cam.CFrame.LookVector * move.Z) + (cam.CFrame.RightVector * move.X)
+                                end
+                            end
+                        -- Controle PC
+                        else
+                            if UserInputService:IsKeyDown(Enum.KeyCode.W) then 
+                                direction = direction + cam.CFrame.LookVector 
+                            end
+                            if UserInputService:IsKeyDown(Enum.KeyCode.S) then 
+                                direction = direction - cam.CFrame.LookVector 
+                            end
+                            if UserInputService:IsKeyDown(Enum.KeyCode.A) then 
+                                direction = direction - cam.CFrame.RightVector 
+                            end
+                            if UserInputService:IsKeyDown(Enum.KeyCode.D) then 
+                                direction = direction + cam.CFrame.RightVector 
+                            end
+                            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then 
+                                direction = direction + Vector3.new(0, 1, 0) 
+                            end
+                            if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then 
+                                direction = direction - Vector3.new(0, 1, 0) 
+                            end
+                        end
+                        
+                        -- Aplicar movimento
+                        if direction.Magnitude > 0 then
+                            direction = direction.Unit
+                            flyBody.Velocity = direction * flySpeed
+                        else
+                            flyBody.Velocity = Vector3.new(0, 0, 0)
+                        end
+                        
+                        flyGyro.CFrame = cam.CFrame
+                    end)
+                end)
+                
+                print("✓ Fly ativado")
+            else
+                -- Desativar fly
+                flying = false
+                
+                if flyConnection then 
+                    flyConnection:Disconnect() 
+                    flyConnection = nil
                 end
                 
-                if dir.Magnitude > 0 then dir = dir.Unit end
-                flyBody.Velocity = dir * flySpeed
-                flyGyro.CFrame = cam.CFrame
-            end)
-        else
-            if flyConnection then flyConnection:Disconnect() end
-            if flyBody then flyBody:Destroy() end
-            if flyGyro then flyGyro:Destroy() end
-        end
+                if flyBody and flyBody.Parent then 
+                    flyBody:Destroy() 
+                end
+                flyBody = nil
+                
+                if flyGyro and flyGyro.Parent then 
+                    flyGyro:Destroy() 
+                end
+                flyGyro = nil
+                
+                print("✓ Fly desativado")
+            end
+        end)
     end
 })
 
@@ -207,8 +318,12 @@ Tab1:AddToggle({
     Name = "Speed",
     Default = false,
     Callback = function(v)
-        speedEnabled = v
-        humanoid.WalkSpeed = v and speedValue or originalWalkSpeed
+        pcall(function()
+            speedEnabled = v
+            if humanoid then
+                humanoid.WalkSpeed = v and speedValue or originalWalkSpeed
+            end
+        end)
     end
 })
 
@@ -219,7 +334,11 @@ Tab1:AddSlider({
     Default = 16,
     Callback = function(v)
         speedValue = v
-        if speedEnabled then humanoid.WalkSpeed = v end
+        pcall(function()
+            if speedEnabled and humanoid then 
+                humanoid.WalkSpeed = v 
+            end
+        end)
     end
 })
 
@@ -232,8 +351,12 @@ Tab1:AddToggle({
     Name = "Jump Boost",
     Default = false,
     Callback = function(v)
-        jumpEnabled = v
-        humanoid.JumpPower = v and jumpValue or originalJumpPower
+        pcall(function()
+            jumpEnabled = v
+            if humanoid then
+                humanoid.JumpPower = v and jumpValue or originalJumpPower
+            end
+        end)
     end
 })
 
@@ -244,21 +367,36 @@ Tab1:AddSlider({
     Default = 50,
     Callback = function(v)
         jumpValue = v
-        if jumpEnabled then humanoid.JumpPower = v end
+        pcall(function()
+            if jumpEnabled and humanoid then 
+                humanoid.JumpPower = v 
+            end
+        end)
     end
 })
+
+local infiniteJumpConnection
 
 Tab1:AddToggle({
     Name = "Infinite Jump",
     Default = false,
     Callback = function(v)
-        if v then
-            _G.InfiniteJump = UserInputService.JumpRequest:Connect(function()
-                humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-            end)
-        else
-            if _G.InfiniteJump then _G.InfiniteJump:Disconnect() end
-        end
+        pcall(function()
+            if v then
+                infiniteJumpConnection = UserInputService.JumpRequest:Connect(function()
+                    pcall(function()
+                        if humanoid then
+                            humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+                        end
+                    end)
+                end)
+            else
+                if infiniteJumpConnection then 
+                    infiniteJumpConnection:Disconnect() 
+                    infiniteJumpConnection = nil
+                end
+            end
+        end)
     end
 })
 
@@ -273,98 +411,135 @@ Tab1:AddToggle({
     Callback = function(v)
         noclipEnabled = v
         
-        if v then
-            noclipConnection = RunService.Stepped:Connect(function()
-                for _, part in pairs(character:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        part.CanCollide = false
+        pcall(function()
+            if v then
+                noclipConnection = RunService.Stepped:Connect(function()
+                    pcall(function()
+                        if not character then return end
+                        for _, part in pairs(character:GetDescendants()) do
+                            if part:IsA("BasePart") and part.CanCollide then
+                                part.CanCollide = false
+                            end
+                        end
+                    end)
+                end)
+            else
+                if noclipConnection then 
+                    noclipConnection:Disconnect() 
+                    noclipConnection = nil
+                end
+                
+                pcall(function()
+                    for _, part in pairs(character:GetDescendants()) do
+                        if part:IsA("BasePart") then
+                            part.CanCollide = true
+                        end
                     end
-                end
-            end)
-        else
-            if noclipConnection then noclipConnection:Disconnect() end
-            for _, part in pairs(character:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.CanCollide = true
-                end
+                end)
             end
-        end
+        end)
     end
 })
 
--- TAB VEÍCULOS
+-- ========== TAB 2: VEÍCULOS (REFORMULADO IGUAL ESPIAR JOGADOR) ==========
 local Tab2 = Window:MakeTab({"Veículos", "shopping-cart"})
 
-Tab2:AddSection({"Car Speed"})
+Tab2:AddSection({"Selecionar Jogador com Carro"})
 
+local selectedCarPlayer = nil
 local carSpeedEnabled = false
 local carSpeedValue = 50
 local carConnection
-local selectedCar = "Todos os Carros"
 
-local carDrop = Tab2:AddDropdown({
-    Name = "Selecionar Veículo",
-    Options = getVehiclesList(),
-    Default = "Todos os Carros",
+local carPlayerDrop = Tab2:AddDropdown({
+    Name = "Selecionar Jogador",
+    Options = getPlayersWithCars(),
+    Default = "Nenhum",
     Callback = function(v)
-        selectedCar = v
+        selectedCarPlayer = v
+        print("✓ Selecionado:", v)
     end
 })
 
 Tab2:AddButton({"Atualizar Lista", function()
-    carDrop:Refresh(getVehiclesList(), true)
+    pcall(function()
+        local newList = getPlayersWithCars()
+        carPlayerDrop:Refresh(newList, true)
+        local count = #newList
+        if newList[1] == "Nenhum" then count = 0 end
+        print("✓ Lista atualizada! Jogadores com carros:", count)
+    end)
 end})
 
+Tab2:AddSection({"Car Speed"})
+
 Tab2:AddToggle({
-    Name = "Car Speed",
+    Name = "Ativar Car Speed",
     Default = false,
     Callback = function(v)
         carSpeedEnabled = v
         
-        if v then
-            carConnection = RunService.Heartbeat:Connect(function()
-                if selectedCar == "Todos os Carros" then
-                    for _, obj in pairs(workspace:GetDescendants()) do
-                        if obj:IsA("VehicleSeat") then
-                            obj.MaxSpeed = carSpeedValue
-                        end
-                    end
-                elseif selectedCar:find("'s Car") then
-                    local playerName = selectedCar:gsub("'s Car", "")
-                    local targetPlayer = Players:FindFirstChild(playerName)
-                    if targetPlayer and targetPlayer.Character then
-                        local hum = targetPlayer.Character:FindFirstChild("Humanoid")
-                        if hum and hum.SeatPart and hum.SeatPart:IsA("VehicleSeat") then
-                            hum.SeatPart.MaxSpeed = carSpeedValue
-                        end
-                    end
+        pcall(function()
+            if v then
+                if selectedCarPlayer and selectedCarPlayer ~= "Nenhum" then
+                    -- Extrair nome do jogador (antes do parêntese)
+                    local playerName = selectedCarPlayer:match("(.+)%s%(")
+                    
+                    carConnection = RunService.Heartbeat:Connect(function()
+                        pcall(function()
+                            if not carSpeedEnabled then return end
+                            
+                            local car = getPlayerCar(playerName)
+                            if car then
+                                for _, obj in pairs(car:GetDescendants()) do
+                                    if obj:IsA("VehicleSeat") then
+                                        obj.MaxSpeed = carSpeedValue
+                                    end
+                                end
+                            end
+                        end)
+                    end)
+                    
+                    print("✓ Car Speed ativado para:", selectedCarPlayer)
                 else
-                    local carName = selectedCar:gsub(" %(Perto%)", "")
-                    for _, obj in pairs(workspace:GetDescendants()) do
-                        if obj:IsA("VehicleSeat") and obj.Parent and obj.Parent.Name == carName then
-                            obj.MaxSpeed = carSpeedValue
+                    print("✗ Selecione um jogador primeiro!")
+                    carSpeedEnabled = false
+                end
+            else
+                if carConnection then 
+                    carConnection:Disconnect() 
+                    carConnection = nil
+                end
+                
+                -- Resetar velocidade
+                pcall(function()
+                    if selectedCarPlayer and selectedCarPlayer ~= "Nenhum" then
+                        local playerName = selectedCarPlayer:match("(.+)%s%(")
+                        local car = getPlayerCar(playerName)
+                        if car then
+                            for _, obj in pairs(car:GetDescendants()) do
+                                if obj:IsA("VehicleSeat") then
+                                    obj.MaxSpeed = 25
+                                end
+                            end
                         end
                     end
-                end
-            end)
-        else
-            if carConnection then carConnection:Disconnect() end
-            for _, obj in pairs(workspace:GetDescendants()) do
-                if obj:IsA("VehicleSeat") then
-                    obj.MaxSpeed = 25
-                end
+                end)
+                
+                print("✓ Car Speed desativado")
             end
-        end
+        end)
     end
 })
 
 Tab2:AddSlider({
-    Text = "Velocidade Carro",
+    Text = "Velocidade do Carro",
     Min = 1,
     Max = 250,
     Default = 50,
     Callback = function(v)
         carSpeedValue = v
+        print("✓ Velocidade ajustada para:", v)
     end
 })
 
@@ -380,47 +555,70 @@ Tab2:AddToggle({
     Callback = function(v)
         carFlyEnabled = v
         
-        if v then
-            if humanoid.SeatPart and humanoid.SeatPart:IsA("VehicleSeat") then
-                local seat = humanoid.SeatPart
-                
-                carFlyBody = Instance.new("BodyVelocity", seat)
-                carFlyBody.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-                carFlyBody.Velocity = Vector3.zero
-                
-                carFlyGyro = Instance.new("BodyGyro", seat)
-                carFlyGyro.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
-                
-                carFlyConnection = RunService.Heartbeat:Connect(function()
-                    if not carFlyEnabled or not humanoid.SeatPart then return end
+        pcall(function()
+            if v then
+                if humanoid.SeatPart and humanoid.SeatPart:IsA("VehicleSeat") then
+                    local seat = humanoid.SeatPart
                     
-                    local cam = workspace.CurrentCamera
-                    local dir = Vector3.zero
+                    carFlyBody = Instance.new("BodyVelocity")
+                    carFlyBody.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+                    carFlyBody.Velocity = Vector3.new(0, 0, 0)
+                    carFlyBody.Parent = seat
                     
-                    if isMobile then
-                        local move = humanoid.MoveVector
-                        if move.Magnitude > 0 then
-                            dir = cam.CFrame.LookVector * move.Z + cam.CFrame.RightVector * move.X
-                        end
-                    else
-                        if UserInputService:IsKeyDown(Enum.KeyCode.W) then dir = dir + cam.CFrame.LookVector end
-                        if UserInputService:IsKeyDown(Enum.KeyCode.S) then dir = dir - cam.CFrame.LookVector end
-                        if UserInputService:IsKeyDown(Enum.KeyCode.A) then dir = dir - cam.CFrame.RightVector end
-                        if UserInputService:IsKeyDown(Enum.KeyCode.D) then dir = dir + cam.CFrame.RightVector end
-                        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then dir = dir + Vector3.new(0, 1, 0) end
-                        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then dir = dir - Vector3.new(0, 1, 0) end
-                    end
+                    carFlyGyro = Instance.new("BodyGyro")
+                    carFlyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+                    carFlyGyro.P = 9000
+                    carFlyGyro.Parent = seat
                     
-                    if dir.Magnitude > 0 then dir = dir.Unit end
-                    carFlyBody.Velocity = dir * carFlySpeed
-                    carFlyGyro.CFrame = cam.CFrame
-                end)
+                    carFlyConnection = RunService.Heartbeat:Connect(function()
+                        pcall(function()
+                            if not carFlyEnabled or not humanoid.SeatPart then return end
+                            
+                            local cam = workspace.CurrentCamera
+                            local dir = Vector3.new(0, 0, 0)
+                            
+                            if isMobile then
+                                if humanoid.MoveVector then
+                                    local move = humanoid.MoveVector
+                                    if move.Magnitude > 0 then
+                                        dir = cam.CFrame.LookVector * move.Z + cam.CFrame.RightVector * move.X
+                                    end
+                                end
+                            else
+                                if UserInputService:IsKeyDown(Enum.KeyCode.W) then dir = dir + cam.CFrame.LookVector end
+                                if UserInputService:IsKeyDown(Enum.KeyCode.S) then dir = dir - cam.CFrame.LookVector end
+                                if UserInputService:IsKeyDown(Enum.KeyCode.A) then dir = dir - cam.CFrame.RightVector end
+                                if UserInputService:IsKeyDown(Enum.KeyCode.D) then dir = dir + cam.CFrame.RightVector end
+                                if UserInputService:IsKeyDown(Enum.KeyCode.Space) then dir = dir + Vector3.new(0, 1, 0) end
+                                if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then dir = dir - Vector3.new(0, 1, 0) end
+                            end
+                            
+                            if dir.Magnitude > 0 then 
+                                dir = dir.Unit 
+                                carFlyBody.Velocity = dir * carFlySpeed
+                                carFlyGyro.CFrame = cam.CFrame
+                            else
+                                carFlyBody.Velocity = Vector3.new(0, 0, 0)
+                            end
+                        end)
+                    end)
+                    
+                    print("✓ Car Fly ativado")
+                else
+                    print("✗ Entre em um carro primeiro!")
+                end
+            else
+                if carFlyConnection then 
+                    carFlyConnection:Disconnect() 
+                    carFlyConnection = nil
+                end
+                if carFlyBody and carFlyBody.Parent then carFlyBody:Destroy() end
+                carFlyBody = nil
+                if carFlyGyro and carFlyGyro.Parent then carFlyGyro:Destroy() end
+                carFlyGyro = nil
+                print("✓ Car Fly desativado")
             end
-        else
-            if carFlyConnection then carFlyConnection:Disconnect() end
-            if carFlyBody then carFlyBody:Destroy() end
-            if carFlyGyro then carFlyGyro:Destroy() end
-        end
+        end)
     end
 })
 
@@ -434,7 +632,7 @@ Tab2:AddSlider({
     end
 })
 
--- TAB TELEPORTE
+-- ========== TAB 3: TELEPORTE ==========
 local Tab3 = Window:MakeTab({"Teleporte", "map-pin"})
 
 Tab3:AddSection({"Teleporte para Jogadores"})
@@ -451,16 +649,22 @@ local tpPlayerDrop = Tab3:AddDropdown({
 })
 
 Tab3:AddButton({"Teleportar", function()
-    if selectedTPPlayer and selectedTPPlayer ~= "Nenhum" then
-        local target = Players:FindFirstChild(selectedTPPlayer)
-        if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
-            rootPart.CFrame = target.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)
+    pcall(function()
+        if selectedTPPlayer and selectedTPPlayer ~= "Nenhum" then
+            local target = Players:FindFirstChild(selectedTPPlayer)
+            if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+                rootPart.CFrame = target.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)
+                print("✓ Teleportado para:", selectedTPPlayer)
+            end
         end
-    end
+    end)
 end})
 
 Tab3:AddButton({"Atualizar Lista", function()
-    tpPlayerDrop:Refresh(getPlayersList(), true)
+    pcall(function()
+        tpPlayerDrop:Refresh(getPlayersList(), true)
+        print("✓ Lista atualizada!")
+    end)
 end})
 
 Tab3:AddSection({"Locais de Brookhaven"})
@@ -486,15 +690,19 @@ Tab3:AddDropdown({
     Options = locationNames,
     Default = "Spawn",
     Callback = function(v)
-        if locations[v] then
-            rootPart.CFrame = locations[v]
-        end
+        pcall(function()
+            if locations[v] then
+                rootPart.CFrame = locations[v]
+                print("✓ Teleportado para:", v)
+            end
+        end)
     end
 })
 
 Tab3:AddSection({"Click Teleport"})
 
 local clickTPEnabled = false
+local clickTPConnection
 
 Tab3:AddToggle({
     Name = "Click TP",
@@ -502,20 +710,27 @@ Tab3:AddToggle({
     Callback = function(v)
         clickTPEnabled = v
         
-        if v then
-            local mouse = player:GetMouse()
-            _G.ClickTP = mouse.Button1Down:Connect(function()
-                if clickTPEnabled then
-                    rootPart.CFrame = CFrame.new(mouse.Hit.Position + Vector3.new(0, 3, 0))
+        pcall(function()
+            if v then
+                local mouse = player:GetMouse()
+                clickTPConnection = mouse.Button1Down:Connect(function()
+                    pcall(function()
+                        if clickTPEnabled and mouse.Target then
+                            rootPart.CFrame = CFrame.new(mouse.Hit.Position + Vector3.new(0, 3, 0))
+                        end
+                    end)
+                end)
+            else
+                if clickTPConnection then 
+                    clickTPConnection:Disconnect() 
+                    clickTPConnection = nil
                 end
-            end)
-        else
-            if _G.ClickTP then _G.ClickTP:Disconnect() end
-        end
+            end
+        end)
     end
 })
 
--- TAB VISUAL
+-- ========== TAB 4: VISUAL ==========
 local Tab4 = Window:MakeTab({"Visual", "eye"})
 
 Tab4:AddSection({"ESP de Jogadores"})
@@ -529,25 +744,29 @@ Tab4:AddToggle({
     Callback = function(v)
         espEnabled = v
         
-        if v then
-            for _, p in pairs(Players:GetPlayers()) do
-                if p ~= player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-                    local highlight = Instance.new("Highlight")
-                    highlight.FillColor = Color3.fromRGB(255, 0, 0)
-                    highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
-                    highlight.FillTransparency = 0.5
-                    highlight.Adornee = p.Character
-                    highlight.Parent = p.Character
-                    
-                    espObjects[p.UserId] = highlight
+        pcall(function()
+            if v then
+                for _, p in pairs(Players:GetPlayers()) do
+                    if p ~= player and p.Character then
+                        local highlight = Instance.new("Highlight")
+                        highlight.FillColor = Color3.fromRGB(255, 0, 0)
+                        highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+                        highlight.FillTransparency = 0.5
+                        highlight.Adornee = p.Character
+                        highlight.Parent = p.Character
+                        
+                        espObjects[p.UserId] = highlight
+                    end
                 end
+            else
+                for _, highlight in pairs(espObjects) do
+                    if highlight then 
+                        pcall(function() highlight:Destroy() end) 
+                    end
+                end
+                espObjects = {}
             end
-        else
-            for _, highlight in pairs(espObjects) do
-                if highlight then highlight:Destroy() end
-            end
-            espObjects = {}
-        end
+        end)
     end
 })
 
@@ -557,13 +776,15 @@ Tab4:AddToggle({
     Name = "Fullbright",
     Default = false,
     Callback = function(v)
-        if v then
-            Lighting.Brightness = 2
-            Lighting.FogEnd = 100000
-        else
-            Lighting.Brightness = 1
-            Lighting.FogEnd = 1000
-        end
+        pcall(function()
+            if v then
+                Lighting.Brightness = 2
+                Lighting.FogEnd = 100000
+            else
+                Lighting.Brightness = 1
+                Lighting.FogEnd = 1000
+            end
+        end)
     end
 })
 
@@ -574,23 +795,25 @@ Tab4:AddDropdown({
     Options = {"Normal", "Azul", "Vermelho", "Verde", "Roxo", "Rosa", "Laranja", "Noite"},
     Default = "Normal",
     Callback = function(v)
-        if v == "Normal" then
-            Lighting.Ambient = Color3.fromRGB(138, 138, 138)
-        elseif v == "Azul" then
-            Lighting.Ambient = Color3.fromRGB(100, 150, 255)
-        elseif v == "Vermelho" then
-            Lighting.Ambient = Color3.fromRGB(255, 50, 50)
-        elseif v == "Verde" then
-            Lighting.Ambient = Color3.fromRGB(50, 255, 100)
-        elseif v == "Roxo" then
-            Lighting.Ambient = Color3.fromRGB(150, 50, 255)
-        elseif v == "Rosa" then
-            Lighting.Ambient = Color3.fromRGB(255, 150, 200)
-        elseif v == "Laranja" then
-            Lighting.Ambient = Color3.fromRGB(255, 150, 50)
-        elseif v == "Noite" then
-            Lighting.Ambient = Color3.fromRGB(10, 10, 50)
-        end
+        pcall(function()
+            if v == "Normal" then
+                Lighting.Ambient = Color3.fromRGB(138, 138, 138)
+            elseif v == "Azul" then
+                Lighting.Ambient = Color3.fromRGB(100, 150, 255)
+            elseif v == "Vermelho" then
+                Lighting.Ambient = Color3.fromRGB(255, 50, 50)
+            elseif v == "Verde" then
+                Lighting.Ambient = Color3.fromRGB(50, 255, 100)
+            elseif v == "Roxo" then
+                Lighting.Ambient = Color3.fromRGB(150, 50, 255)
+            elseif v == "Rosa" then
+                Lighting.Ambient = Color3.fromRGB(255, 150, 200)
+            elseif v == "Laranja" then
+                Lighting.Ambient = Color3.fromRGB(255, 150, 50)
+            elseif v == "Noite" then
+                Lighting.Ambient = Color3.fromRGB(10, 10, 50)
+            end
+        end)
     end
 })
 
@@ -602,11 +825,13 @@ Tab4:AddSlider({
     Max = 120,
     Default = 70,
     Callback = function(v)
-        workspace.CurrentCamera.FieldOfView = v
+        pcall(function()
+            workspace.CurrentCamera.FieldOfView = v
+        end)
     end
 })
 
--- TAB FERRAMENTAS (COM BUILD TOOL ADICIONADA)
+-- ========== TAB 5: FERRAMENTAS ==========
 local Tab5 = Window:MakeTab({"Ferramentas", "tool"})
 
 Tab5:AddSection({"Build Tool"})
@@ -633,14 +858,16 @@ Tab5:AddButton({"Criar Build Tool", function()
 end})
 
 Tab5:AddButton({"Deletar Blocos", function()
-    local count = 0
-    for _, obj in pairs(workspace:GetChildren()) do
-        if obj:IsA("Part") and obj.Anchored and not obj:IsDescendantOf(character) then
-            obj:Destroy()
-            count = count + 1
+    pcall(function()
+        local count = 0
+        for _, obj in pairs(workspace:GetChildren()) do
+            if obj:IsA("Part") and obj.Anchored and not obj:IsDescendantOf(character) then
+                obj:Destroy()
+                count = count + 1
+            end
         end
-    end
-    print("✓", count, "blocos deletados!")
+        print("✓", count, "blocos deletados!")
+    end)
 end})
 
 Tab5:AddSection({"Espionar Jogador"})
@@ -657,62 +884,95 @@ local spyDrop = Tab5:AddDropdown({
 })
 
 Tab5:AddButton({"Espiar", function()
-    if selectedSpy and selectedSpy ~= "Nenhum" then
-        local target = Players:FindFirstChild(selectedSpy)
-        if target and target.Character and target.Character:FindFirstChild("Humanoid") then
-            workspace.CurrentCamera.CameraSubject = target.Character.Humanoid
+    pcall(function()
+        if selectedSpy and selectedSpy ~= "Nenhum" then
+            local target = Players:FindFirstChild(selectedSpy)
+            if target and target.Character and target.Character:FindFirstChild("Humanoid") then
+                workspace.CurrentCamera.CameraSubject = target.Character.Humanoid
+                print("✓ Espiando:", selectedSpy)
+            end
         end
-    end
+    end)
 end})
 
 Tab5:AddButton({"Parar", function()
-    workspace.CurrentCamera.CameraSubject = humanoid
+    pcall(function()
+        workspace.CurrentCamera.CameraSubject = humanoid
+        print("✓ Câmera restaurada")
+    end)
 end})
 
 Tab5:AddButton({"Atualizar Lista", function()
-    spyDrop:Refresh(getPlayersList(), true)
+    pcall(function()
+        spyDrop:Refresh(getPlayersList(), true)
+    end)
 end})
 
 Tab5:AddSection({"Itens"})
 
 Tab5:AddButton({"Pegar Todos Itens", function()
-    for _, v in pairs(workspace:GetDescendants()) do
-        if v:IsA("Tool") and v.Parent ~= player.Backpack and v.Parent ~= character then
-            v.Parent = player.Backpack
+    pcall(function()
+        local count = 0
+        for _, v in pairs(workspace:GetDescendants()) do
+            if v:IsA("Tool") and v.Parent ~= player.Backpack and v.Parent ~= character then
+                v.Parent = player.Backpack
+                count = count + 1
+            end
         end
-    end
+        print("✓", count, "itens coletados!")
+    end)
 end})
 
--- TAB DIVERSOS
+-- ========== TAB 6: DIVERSOS ==========
 local Tab6 = Window:MakeTab({"Diversos", "settings"})
 
 Tab6:AddSection({"Anti-AFK"})
+
+local antiAFKConnection
 
 Tab6:AddToggle({
     Name = "Anti-AFK",
     Default = false,
     Callback = function(v)
-        if v then
-            local vu = game:GetService("VirtualUser")
-            _G.AntiAFK = player.Idled:Connect(function()
-                vu:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
-                wait(1)
-                vu:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
-            end)
-        else
-            if _G.AntiAFK then _G.AntiAFK:Disconnect() end
-        end
+        pcall(function()
+            if v then
+                antiAFKConnection = player.Idled:Connect(function()
+                    pcall(function()
+                        Services.VirtualUser:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+                        task.wait(1)
+                        Services.VirtualUser:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+                    end)
+                end)
+                print("✓ Anti-AFK ativado")
+            else
+                if antiAFKConnection then 
+                    antiAFKConnection:Disconnect() 
+                    antiAFKConnection = nil
+                end
+                print("✓ Anti-AFK desativado")
+            end
+        end)
     end
 })
 
 Tab6:AddSection({"Anti-Ban"})
 
 Tab6:AddButton({"Ativar Anti-Ban", function()
-    for _, v in pairs(workspace:GetDescendants()) do
-        if v:IsA("TouchTransmitter") then
-            v:Destroy()
+    pcall(function()
+        local count = 0
+        for _, v in pairs(workspace:GetDescendants()) do
+            if v:IsA("TouchTransmitter") then
+                v:Destroy()
+                count = count + 1
+            end
+            
+            -- Desabilitar colisões com portas
+            if v:IsA("Part") and (v.Name:lower():match("door") or v.Name:lower():match("gate")) then
+                v.CanCollide = false
+            end
         end
-    end
+        print("✓ Anti-Ban ativado! Removidos:", count, "detectores")
+    end)
 end})
 
 Tab6:AddSection({"Física"})
@@ -723,15 +983,20 @@ Tab6:AddSlider({
     Max = 500,
     Default = 196,
     Callback = function(v)
-        workspace.Gravity = v
+        pcall(function()
+            workspace.Gravity = v
+        end)
     end
 })
 
 Tab6:AddButton({"Resetar Gravidade", function()
-    workspace.Gravity = originalGravity
+    pcall(function()
+        workspace.Gravity = originalGravity
+        print("✓ Gravidade restaurada")
+    end)
 end})
 
--- TAB CONFIG
+-- ========== TAB 7: CONFIG ==========
 local Tab7 = Window:MakeTab({"Config", "list"})
 
 Tab7:AddSection({"Discord"})
@@ -746,68 +1011,87 @@ Tab7:AddDiscordInvite({
 Tab7:AddSection({"Controles"})
 
 Tab7:AddButton({"Resetar Tudo", function()
-    if flying then
-        if flyConnection then flyConnection:Disconnect() end
-        if flyBody then flyBody:Destroy() end
-        if flyGyro then flyGyro:Destroy() end
+    pcall(function()
+        -- Desativar fly
         flying = false
-    end
-    
-    if noclipConnection then noclipConnection:Disconnect() end
-    if carConnection then carConnection:Disconnect() end
-    if carFlyConnection then carFlyConnection:Disconnect() end
-    if carFlyBody then carFlyBody:Destroy() end
-    if carFlyGyro then carFlyGyro:Destroy() end
-    if _G.ClickTP then _G.ClickTP:Disconnect() end
-    if _G.InfiniteJump then _G.InfiniteJump:Disconnect() end
-    if _G.AntiAFK then _G.AntiAFK:Disconnect() end
-    
-    for _, highlight in pairs(espObjects) do
-        if highlight then highlight:Destroy() end
-    end
-    
-    humanoid.WalkSpeed = originalWalkSpeed
-    humanoid.JumpPower = originalJumpPower
-    workspace.Gravity = originalGravity
-    workspace.CurrentCamera.CameraSubject = humanoid
-    workspace.CurrentCamera.FieldOfView = 70
-    
-    Lighting.Brightness = 1
-    Lighting.FogEnd = 1000
-    Lighting.Ambient = Color3.fromRGB(138, 138, 138)
+        if flyConnection then flyConnection:Disconnect() end
+        if flyBody and flyBody.Parent then flyBody:Destroy() end
+        if flyGyro and flyGyro.Parent then flyGyro:Destroy() end
+        
+        -- Desativar noclip
+        if noclipConnection then noclipConnection:Disconnect() end
+        
+        -- Desativar car speed/fly
+        if carConnection then carConnection:Disconnect() end
+        if carFlyConnection then carFlyConnection:Disconnect() end
+        if carFlyBody and carFlyBody.Parent then carFlyBody:Destroy() end
+        if carFlyGyro and carFlyGyro.Parent then carFlyGyro:Destroy() end
+        
+        -- Desativar outros
+        if clickTPConnection then clickTPConnection:Disconnect() end
+        if infiniteJumpConnection then infiniteJumpConnection:Disconnect() end
+        if antiAFKConnection then antiAFKConnection:Disconnect() end
+        
+        -- Remover ESP
+        for _, highlight in pairs(espObjects) do
+            if highlight then highlight:Destroy() end
+        end
+        espObjects = {}
+        
+        -- Restaurar valores
+        if humanoid then
+            humanoid.WalkSpeed = originalWalkSpeed
+            humanoid.JumpPower = originalJumpPower
+        end
+        workspace.Gravity = originalGravity
+        workspace.CurrentCamera.CameraSubject = humanoid
+        workspace.CurrentCamera.FieldOfView = 70
+        
+        Lighting.Brightness = 1
+        Lighting.FogEnd = 1000
+        Lighting.Ambient = Color3.fromRGB(138, 138, 138)
+        
+        print("✓ Tudo resetado!")
+    end)
 end})
 
 Tab7:AddButton({"Fechar Hub", function()
-    Window:Destroy()
+    pcall(function()
+        Window:Destroy()
+        print("✓ Dragon Hub fechado!")
+    end)
 end})
 
--- CORRIGIDO: Auto-atualização
-Players.PlayerAdded:Connect(function()
-    task.wait(1)
-    pcall(function()
-        if spyDrop then spyDrop:Refresh(getPlayersList(), true) end
-        if tpPlayerDrop then tpPlayerDrop:Refresh(getPlayersList(), true) end
-        if carDrop then carDrop:Refresh(getVehiclesList(), true) end
-    end)
-end)
-
-Players.PlayerRemoving:Connect(function()
-    task.wait(1)
-    pcall(function()
-        if spyDrop then spyDrop:Refresh(getPlayersList(), true) end
-        if tpPlayerDrop then tpPlayerDrop:Refresh(getPlayersList(), true) end
-        if carDrop then carDrop:Refresh(getVehiclesList(), true) end
-    end)
-end)
-
-spawn(function()
-    while wait(5) do
+-- ========== AUTO-ATUALIZAÇÃO ==========
+pcall(function()
+    Players.PlayerAdded:Connect(function()
+        task.wait(1)
         pcall(function()
-            if carDrop then
-                carDrop:Refresh(getVehiclesList(), true)
-            end
+            if spyDrop then spyDrop:Refresh(getPlayersList(), true) end
+            if tpPlayerDrop then tpPlayerDrop:Refresh(getPlayersList(), true) end
+            if carPlayerDrop then carPlayerDrop:Refresh(getPlayersWithCars(), true) end
         end)
-    end
+    end)
+
+    Players.PlayerRemoving:Connect(function()
+        task.wait(1)
+        pcall(function()
+            if spyDrop then spyDrop:Refresh(getPlayersList(), true) end
+            if tpPlayerDrop then tpPlayerDrop:Refresh(getPlayersList(), true) end
+            if carPlayerDrop then carPlayerDrop:Refresh(getPlayersWithCars(), true) end
+        end)
+    end)
+
+    task.spawn(function()
+        while task.wait(3) do
+            pcall(function()
+                if carPlayerDrop then
+                    carPlayerDrop:Refresh(getPlayersWithCars(), true)
+                end
+            end)
+        end
+    end)
 end)
 
-print("✓ Dragon Hub 0.3 Carregado!")
+print("✓ Dragon Hub - by:paozin Carregado!")
+print("✓ Sistema de veículos reformulado!")
